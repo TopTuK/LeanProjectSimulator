@@ -24,8 +24,8 @@ def test_full_demo_week(auth_client, db):
     st = client.post(f"/api/sessions/{sid}/clock/start", json={"client_action_id": "a1"}).json()
     assert st["status"] == "running"
 
-    # test speed: 45 s per week -> 15 s is Wednesday morning-ish
-    _rewind(db, sid, 15)
+    # test speed: 3 min per week -> 60 s is Wednesday morning-ish
+    _rewind(db, sid, 60)
     st = client.get(f"/api/sessions/{sid}").json()
     assert st["clock"]["weekday"] >= 1
     open_dec = [d for d in st["decisions"] if d["status"] == "open"]
@@ -50,7 +50,7 @@ def test_full_demo_week(auth_client, db):
     assert r.status_code == 200
 
     client.post(f"/api/sessions/{sid}/clock/start")
-    _rewind(db, sid, 60)
+    _rewind(db, sid, 240)
     st = client.get(f"/api/sessions/{sid}").json()
     assert st["status"] == "ended"
     assert st["clock"]["weekday"] == 4 and st["clock"]["hour"] == 19

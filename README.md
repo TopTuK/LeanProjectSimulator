@@ -16,7 +16,7 @@ docker compose up --build
 ```
 
 Open http://localhost:8080, sign in with Yandex and press **Start simulation**. Pick the **Test** or
-**Fast** speed to play a week in 45 s or 3 min; **Demo** is 12.5 min per week.
+**Fast** speed to play a week in 3 or 7 min; **Demo** is 15 min per week.
 
 ## Configuration
 
@@ -127,7 +127,7 @@ The server owns time. A session stores `minutes` (project minutes since Monday 8
 `status` (`ready | running | paused | ended`) and `last_tick_at`.
 
 - Days run 8:00–19:00 on the clock (660 project minutes), people work 9:00–17:00, weekends are skipped.
-- Speed is real seconds per project week: `test` 45, `fast` 180, `demo` 750.
+- Speed is real seconds per project week: `test` 180, `fast` 420, `demo` 900.
 - Nothing runs in the background. Every request for a running session calls `sim.advance`, which moves
   the clock by `elapsed real seconds × speed factor` and replays each completed project hour in order:
 

@@ -16,7 +16,7 @@ WORK_END = 17
 WORK_HOURS_PER_DAY = WORK_END - WORK_START  # 8
 
 # Real seconds for one project week.
-SPEEDS = {"test": 45, "fast": 180, "demo": 750}
+SPEEDS = {"test": 180, "fast": 420, "demo": 900}
 DEMO_WEEKS = 1
 
 

@@ -60,7 +60,7 @@ export const GUIDE = {
         title: '2. Run the week',
         items: [
           'Press Start clock (top right). One project week is Monday to Friday, 8:00–19:00. People work 9:00–17:00.',
-          'At Demo speed one week takes 12.5 minutes. Test and Fast speeds are shorter.',
+          'At Demo speed one week takes 15 minutes. Test and Fast speeds are shorter.',
           'You can pause and resume at any time. Pausing does not cost anything.',
         ],
       },
@@ -121,7 +121,7 @@ export const GUIDE = {
         title: '2. Запустите неделю',
         items: [
           'Нажмите «Запустить часы» (справа вверху). Проектная неделя - с понедельника по пятницу, 8:00–19:00. Люди работают с 9:00 до 17:00.',
-          'На скорости «Демо» неделя длится 12,5 минуты. «Тест» и «Быстро» - короче.',
+          'На скорости «Демо» неделя длится 15 минут. «Тест» и «Быстро» - короче.',
           'Ставить на паузу и продолжать можно в любой момент. Пауза ничего не стоит.',
         ],
       },

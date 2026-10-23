@@ -24,8 +24,10 @@ def test_work_hours_and_days():
     assert work_days(WEEK_MIN) == 5
 
 
-def test_demo_speed_is_12_5_minutes_per_week():
-    assert abs(WEEK_MIN / factor("demo") - 750) < 1e-9
+def test_speeds_are_3_7_15_minutes_per_week():
+    assert abs(WEEK_MIN / factor("test") - 180) < 1e-9
+    assert abs(WEEK_MIN / factor("fast") - 420) < 1e-9
+    assert abs(WEEK_MIN / factor("demo") - 900) < 1e-9
 
 
 def test_cpm_critical_path():

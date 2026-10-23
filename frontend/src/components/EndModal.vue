@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useSim } from '../stores/sim.js'
 import Modal from './Modal.vue'
 import IndexCard from './IndexCard.vue'
+import endImg from '../assets/week-end.jpg'
 
 const emit = defineEmits(['close'])
 const { t } = useI18n()
@@ -22,6 +23,8 @@ function again() {
       <h2 class="text-lg font-semibold text-slate-900">{{ t('end.title') }}</h2>
       <p class="mt-1 text-sm text-slate-500">{{ t('end.lead') }}</p>
     </template>
+
+    <img :src="endImg" alt="" class="mx-auto mb-4 h-24 w-auto mix-blend-multiply" />
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <IndexCard v-for="k in ['cost', 'schedule', 'quality', 'motivation']" :key="k" :label="t(`dim.${k}`)" :value="sim.state.indexes[k]" />

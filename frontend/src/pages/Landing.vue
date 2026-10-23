@@ -6,6 +6,7 @@ import { lastSessionId } from '../stores/sim.js'
 import { useAuth } from '../stores/auth.js'
 import { QUICK_START } from '../i18n/guide.js'
 import LangSwitch from '../components/LangSwitch.vue'
+import heroImg from '../assets/landing-hero.jpg'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -42,26 +43,32 @@ onMounted(() => auth.fetch())
     </header>
 
     <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-6 pb-24">
-      <p class="label mb-4">{{ t('app.tagline') }}</p>
-      <h1 class="max-w-2xl text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">{{ t('landing.title') }}</h1>
-      <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">{{ t('landing.lead') }}</p>
+      <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div>
+          <p class="label mb-4">{{ t('app.tagline') }}</p>
+          <h1 class="max-w-2xl text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">{{ t('landing.title') }}</h1>
+          <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">{{ t('landing.lead') }}</p>
 
-      <p v-if="authError" class="mt-6 text-sm text-red-600" data-test="auth-error">{{ t('auth.error') }}</p>
+          <p v-if="authError" class="mt-6 text-sm text-red-600" data-test="auth-error">{{ t('auth.error') }}</p>
 
-      <div class="mt-10 flex flex-wrap items-center gap-3">
-        <template v-if="auth.user">
-          <RouterLink to="/control" class="btn btn-primary px-6 py-3 text-base" data-test="start">
-            {{ t('landing.start') }}
-            <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M7 4l7 6-7 6V4z" /></svg>
-          </RouterLink>
-          <RouterLink v-if="last" :to="`/sim/${last}`" class="btn btn-ghost px-5 py-3 text-base">
-            {{ t('landing.resume') }}
-          </RouterLink>
-        </template>
-        <button v-else class="btn btn-primary px-6 py-3 text-base" :disabled="!auth.loaded" data-test="login-start" @click="auth.login('/control')">
-          {{ t('auth.loginToStart') }}
-          <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M7 4l7 6-7 6V4z" /></svg>
-        </button>
+          <div class="mt-10 flex flex-wrap items-center gap-3">
+            <template v-if="auth.user">
+              <RouterLink to="/control" class="btn btn-primary px-6 py-3 text-base" data-test="start">
+                {{ t('landing.start') }}
+                <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M7 4l7 6-7 6V4z" /></svg>
+              </RouterLink>
+              <RouterLink v-if="last" :to="`/sim/${last}`" class="btn btn-ghost px-5 py-3 text-base">
+                {{ t('landing.resume') }}
+              </RouterLink>
+            </template>
+            <button v-else class="btn btn-primary px-6 py-3 text-base" :disabled="!auth.loaded" data-test="login-start" @click="auth.login('/control')">
+              {{ t('auth.loginToStart') }}
+              <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M7 4l7 6-7 6V4z" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <img :src="heroImg" alt="" class="hidden w-full max-w-md justify-self-center mix-blend-multiply lg:block" />
       </div>
 
       <h2 class="label mt-14">{{ quick.title }}</h2>

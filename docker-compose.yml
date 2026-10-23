@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-simultrain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simultrain}
+      POSTGRES_DB: ${POSTGRES_DB:-simultrain}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-simultrain} -d ${POSTGRES_DB:-simultrain}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-simultrain}:${POSTGRES_PASSWORD:-simultrain}@db:5432/${POSTGRES_DB:-simultrain}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:?set YANDEX_CLIENT_ID in .env}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:?set YANDEX_CLIENT_SECRET in .env}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-http://localhost:8080/auth/login-yandex}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

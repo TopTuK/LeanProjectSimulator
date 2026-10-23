@@ -1,0 +1,44 @@
+# Production compose: pulls prebuilt images tagged by the deploy workflow
+# instead of building from source. Service names must stay `api` and `web`
+# because frontend/nginx.conf proxies to http://api:8000.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-simultrain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simultrain}
+      POSTGRES_DB: ${POSTGRES_DB:-simultrain}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-simultrain} -d ${POSTGRES_DB:-simultrain}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    image: simultrain-api:latest
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-simultrain}:${POSTGRES_PASSWORD:-simultrain}@db:5432/${POSTGRES_DB:-simultrain}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:?set YANDEX_CLIENT_ID in .env}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:?set YANDEX_CLIENT_SECRET in .env}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:?set YANDEX_REDIRECT_URI in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      # production is served over https, so the cookie needs the Secure flag
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    image: simultrain-web:latest
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

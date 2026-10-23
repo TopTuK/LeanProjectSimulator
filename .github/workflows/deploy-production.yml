@@ -1,0 +1,162 @@
+name: Manual deploy production
+
+on: workflow_dispatch
+
+env:
+  REGISTRY: ghcr.io
+  # Directory on the production server holding docker-compose.production.yml and .env.
+  # Change it here or set the DEPLOY_DIR repository variable.
+  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/srv/simultrain' }}
+
+jobs:
+  build:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api-image: ${{ steps.images.outputs.api }}
+      web-image: ${{ steps.images.outputs.web }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ghcr.io requires lowercase image names; GITHUB_REPOSITORY may contain uppercase
+      - name: Compute image names
+        id: images
+        run: |
+          REPO="${GITHUB_REPOSITORY,,}"
+          echo "api=ghcr.io/${REPO}-api" >> "$GITHUB_OUTPUT"
+          echo "web=ghcr.io/${REPO}-web" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.images.outputs.api }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.images.outputs.web }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to PROD
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      SSH_KEY_PATH: /tmp/ssh_key
+      ENV_FILE_PATH: /tmp/production.env
+      SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deploy secrets
+        run: |
+          if [ -z "${{ secrets.PRODUCTION_SSH_USERNAME }}" ]; then
+            echo "::error::PRODUCTION_SSH_USERNAME secret is not set or empty (this causes 'runner@host' and Permission denied)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PRODUCTION_SSH_HOST }}" ]; then
+            echo "::error::PRODUCTION_SSH_HOST secret is not set or empty"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PRODUCTION_SSH_KEY }}" ]; then
+            echo "::error::PRODUCTION_SSH_KEY secret is not set or empty"
+            exit 1
+          fi
+          if [ -z "${{ secrets.REGISTRY_TOKEN }}" ]; then
+            echo "::error::REGISTRY_TOKEN secret is not set or empty (a GitHub PAT with read:packages, used to pull images on the server)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.YANDEX_CLIENT_ID }}" ]; then
+            echo "::error::YANDEX_CLIENT_ID secret is not set or empty"
+            exit 1
+          fi
+          if [ -z "${{ secrets.YANDEX_CLIENT_SECRET }}" ]; then
+            echo "::error::YANDEX_CLIENT_SECRET secret is not set or empty"
+            exit 1
+          fi
+          if [ -z "${{ secrets.YANDEX_REDIRECT_URI }}" ]; then
+            echo "::error::YANDEX_REDIRECT_URI secret is not set or empty (for production: https://pmsim.pmi.moscow/auth/login-yandex)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SESSION_SECRET }}" ]; then
+            echo "::error::SESSION_SECRET secret is not set or empty"
+            exit 1
+          fi
+          if [ -z "${{ secrets.POSTGRES_PASSWORD }}" ]; then
+            echo "::error::POSTGRES_PASSWORD secret is not set or empty"
+            exit 1
+          fi
+
+      - name: Setup SSH key
+        run: |
+          printf '%s\n' "${{ secrets.PRODUCTION_SSH_KEY }}" | sed 's/\r$//' > ${{ env.SSH_KEY_PATH }}
+          chmod 600 ${{ env.SSH_KEY_PATH }}
+          head -n1 ${{ env.SSH_KEY_PATH }} | grep -q "BEGIN.*KEY" || (echo "Invalid key format" && exit 1)
+
+      - name: Generate production .env
+        run: |
+          {
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER || 'simultrain' }}"
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
+            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB || 'simultrain' }}"
+            echo "WEB_PORT=${{ vars.WEB_PORT || '80' }}"
+            echo "YANDEX_CLIENT_ID=${{ secrets.YANDEX_CLIENT_ID }}"
+            echo "YANDEX_CLIENT_SECRET=${{ secrets.YANDEX_CLIENT_SECRET }}"
+            echo "YANDEX_REDIRECT_URI=${{ secrets.YANDEX_REDIRECT_URI }}"
+            echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}"
+            echo "COOKIE_SECURE=true"
+          } > ${{ env.ENV_FILE_PATH }}
+          chmod 600 ${{ env.ENV_FILE_PATH }}
+
+      - name: Copy docker-compose and .env to server
+        run: |
+          ssh -p ${{ env.SSH_PORT }} -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ${{ env.SSH_KEY_PATH }} \
+            ${{ secrets.PRODUCTION_SSH_USERNAME }}@${{ secrets.PRODUCTION_SSH_HOST }} \
+            "mkdir -p ${{ env.DEPLOY_DIR }}"
+          scp -P ${{ env.SSH_PORT }} -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ${{ env.SSH_KEY_PATH }} \
+            docker-compose.production.yml ${{ env.ENV_FILE_PATH }} \
+            ${{ secrets.PRODUCTION_SSH_USERNAME }}@${{ secrets.PRODUCTION_SSH_HOST }}:${{ env.DEPLOY_DIR }}/
+
+      - name: Deploy on PROD server
+        run: |
+          ssh -p ${{ env.SSH_PORT }} -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ${{ env.SSH_KEY_PATH }} \
+            ${{ secrets.PRODUCTION_SSH_USERNAME }}@${{ secrets.PRODUCTION_SSH_HOST }} \
+            "cd ${{ env.DEPLOY_DIR }} && \
+             mv production.env .env && \
+             chmod 600 .env && \
+             docker login ${{ env.REGISTRY }} -u ${{ github.actor }} -p ${{ secrets.REGISTRY_TOKEN }} && \
+             docker pull ${{ needs.build.outputs.api-image }}:latest && \
+             docker pull ${{ needs.build.outputs.web-image }}:latest && \
+             docker tag ${{ needs.build.outputs.api-image }}:latest simultrain-api:latest && \
+             docker tag ${{ needs.build.outputs.web-image }}:latest simultrain-web:latest && \
+             docker compose -f docker-compose.production.yml down --remove-orphans && \
+             docker compose -f docker-compose.production.yml up -d --no-build --force-recreate && \
+             docker image prune -af"
+
+      - name: Clean up local secrets
+        if: always()
+        run: rm -f ${{ env.SSH_KEY_PATH }} ${{ env.ENV_FILE_PATH }}

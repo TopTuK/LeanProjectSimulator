@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../stores/auth.js'
 import Icon from './Icon.vue'
@@ -17,9 +17,20 @@ const PROVIDERS = [
   { id: 'mail', color: '#005ff9', mark: '@' },
 ]
 
+const card = ref(null)
+// move focus into the dialog and hand it back to the opener when it closes
+let opener = null
+
 const onKey = (e) => e.key === 'Escape' && emit('close')
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onMounted(() => {
+  opener = document.activeElement
+  card.value?.focus()
+  window.addEventListener('keydown', onKey)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+  opener?.focus?.()
+})
 </script>
 
 <template>
@@ -28,14 +39,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     @mousedown.self="emit('close')"
   >
     <div
-      class="login-card relative w-full max-w-sm rounded-2xl border border-slate-200/60 bg-white p-8 shadow-2xl shadow-slate-900/10"
+      ref="card"
+      class="login-card relative w-full max-w-sm rounded-2xl border border-slate-200/60 bg-white p-8 shadow-2xl shadow-slate-900/10 focus:outline-none"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="login-options-title"
+      tabindex="-1"
       data-test="login-options"
     >
       <button
         class="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
-        :aria-label="t('auth.login')"
+        :aria-label="t('task.close')"
         data-test="login-close"
         @click="emit('close')"
       >
@@ -46,7 +60,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16l4-5 3 2.5L18 7" /></svg>
       </span>
 
-      <h2 class="mt-5 text-xl font-semibold tracking-tight text-slate-900">{{ t('auth.loginTitle') }}</h2>
+      <h2 id="login-options-title" class="mt-5 text-xl font-semibold tracking-tight text-slate-900">{{ t('auth.loginTitle') }}</h2>
       <p class="mt-1 text-sm text-slate-500">{{ t('auth.loginSubtitle') }}</p>
 
       <div class="mt-7 grid gap-2">

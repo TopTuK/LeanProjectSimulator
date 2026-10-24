@@ -48,6 +48,12 @@ def test_exchange_code_bad_status(vk, monkeypatch):
         vk.exchange_code("c", "v", "d", "s")
 
 
+def test_exchange_code_non_object_body(vk, monkeypatch):
+    _capture(monkeypatch, ["unexpected"])
+    with pytest.raises(VkError, match="bad response"):
+        vk.exchange_code("c", "v", "d", "s")
+
+
 def test_exchange_code_network_error(vk, monkeypatch):
     def post(*a, **k):
         raise httpx.ConnectError("down")

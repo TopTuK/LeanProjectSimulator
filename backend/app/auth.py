@@ -129,6 +129,8 @@ class VkClient:
             body = r.json()
         except ValueError as e:
             raise VkError(f"bad response: {r.status_code}") from e
+        if not isinstance(body, dict):
+            raise VkError(f"bad response: {r.status_code}")
         if r.status_code != 200 or "error" in body:
             raise VkError(f"{url} failed: {r.status_code} {body.get('error')}")
         return body

@@ -1,21 +1,21 @@
 # SimulTrain Demo
 
 A project-management business game modelled on the flow described in [behavior.md](behavior.md):
-landing page → sign in with Yandex → simulation control → a one-week playable demo with a running clock,
+landing page → sign in with Yandex, VK, Odnoklassniki or Mail.ru → simulation control → a one-week playable demo with a running clock,
 mail, phone calls, decisions, and live Cost / Schedule / Quality / Motivation indexes.
 Scenario content ("Webshop Launch") and scoring rules are original.
 
 Stack: Vue 3 + Pinia + Tailwind CSS v4 (Vite), FastAPI + SQLAlchemy 2, PostgreSQL 16, nginx.
-UI and scenario in English and Russian. Sign-in with Yandex ID.
+UI and scenario in English and Russian. Sign-in with Yandex ID or VK ID (VK, Odnoklassniki, Mail.ru).
 
 ## Quick start
 
 ```sh
-cp .env.example .env   # fill in the Yandex ID app and SESSION_SECRET
+cp .env.example .env   # fill in the Yandex ID and VK ID apps and SESSION_SECRET
 docker compose up --build
 ```
 
-Open http://localhost:8080, sign in with Yandex and press **Start simulation**. Pick the **Test** or
+Open http://localhost:8080, sign in and press **Start simulation**. Pick the **Test** or
 **Fast** speed to play a week in 3 or 7 min; **Demo** is 15 min per week.
 
 ## Configuration
@@ -26,19 +26,23 @@ All settings come from environment variables; `docker compose` reads them from `
 | --- | --- | --- |
 | `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET` | — (required) | App credentials from https://oauth.yandex.ru |
 | `YANDEX_REDIRECT_URI` | `http://localhost:8080/auth/login-yandex` | Must equal a Redirect URI registered in the Yandex app |
+| `VK_CLIENT_ID` | — (required in production) | VK ID app id from https://id.vk.com/about/business (VK, Odnoklassniki, Mail.ru sign-in). The app's secret and service keys are not used |
+| `VK_REDIRECT_URI` | `http://localhost:8080/auth/login-vk` | Must equal a trusted Redirect URL of the VK ID app |
 | `SESSION_SECRET` | — (required) | Signs the login cookie; keep it stable or everybody is signed out on restart |
 | `COOKIE_SECURE` | `false` | `true` when served over https; must be `false` on plain-http localhost |
 | `DATABASE_URL` | `sqlite:///./simultrain.db` | SQLAlchemy URL; compose points it at the `db` service |
 | `POSTGRES_USER` / `_PASSWORD` / `_DB` | `simultrain` | Postgres container credentials |
-| `WEB_PORT` | `8080` | Host port of the web container |
+| `WEB_PORT` | `8080` | Host port of the web container (local `docker-compose.yml`) |
+| `VIRTUAL_HOST` | `pmsim.pmi.moscow` | Production only: hostname nginx-proxy routes to the web container |
+| `WEB_HOST_PORT` | `8086` | Production only: loopback port of the web container, for debugging on the host |
 
-Redirect URIs to register in the Yandex app:
+Redirect URIs to register in the Yandex app and the VK ID app:
 
-| Environment | Redirect URI |
-| --- | --- |
-| Production | `https://pmsim.pmi.moscow/auth/login-yandex` |
-| `docker compose` on localhost | `http://localhost:8080/auth/login-yandex` |
-| Vite dev server | `http://localhost:5173/auth/login-yandex` |
+| Environment | Yandex redirect URI | VK ID redirect URL |
+| --- | --- | --- |
+| Production | `https://pmsim.pmi.moscow/auth/login-yandex` | `https://pmsim.pmi.moscow/auth/login-vk` |
+| `docker compose` on localhost | `http://localhost:8080/auth/login-yandex` | `http://localhost:8080/auth/login-vk` |
+| Vite dev server | `http://localhost:5173/auth/login-yandex` | `http://localhost:5173/auth/login-vk` |
 
 Use the same host in the browser as in the redirect URI (`localhost` and `127.0.0.1` have separate cookies).
 
@@ -50,6 +54,7 @@ cd backend && pip install -r requirements.txt
 export DATABASE_URL=postgresql+psycopg://simultrain:simultrain@localhost:5432/simultrain
 export YANDEX_CLIENT_ID=... YANDEX_CLIENT_SECRET=... SESSION_SECRET=dev-secret COOKIE_SECURE=false
 export YANDEX_REDIRECT_URI=http://localhost:5173/auth/login-yandex
+export VK_REDIRECT_URI=http://localhost:5173/auth/login-vk
 uvicorn app.main:app --reload
 cd frontend && npm install && npm run dev    # http://localhost:5173, proxies /api and /auth to :8000
 ```
@@ -64,12 +69,63 @@ cd backend && pytest -q          # or: docker compose exec api pytest -q
 cd frontend && npm test          # Vitest + jsdom
 ```
 
-- **Backend** ([backend/tests](backend/tests)) runs against a throwaway SQLite database. Yandex is replaced
-  by `FakeYandex` in [conftest.py](backend/tests/conftest.py); the `login()` helper walks the real redirect
+- **Backend** ([backend/tests](backend/tests)) runs against a throwaway SQLite database. Yandex and VK ID are replaced
+  by `FakeYandex` / `FakeVk` in [conftest.py](backend/tests/conftest.py); the `login()` helper walks the real redirect
   flow, and the `auth_client` fixture is a signed-in client. Covers clock maths, rules, a full demo week,
   sign-in (state check, open-redirect guard, errors), per-user access and the schema upgrade.
 - **Frontend** ([frontend/src/\_\_tests\_\_](frontend/src/__tests__)) stubs `fetch`. Covers the API client,
   auth and sim stores, the router guard and the landing page in both languages.
+
+## Production deployment
+
+Production runs at https://pmsim.pmi.moscow behind the shared **nginx-proxy** (not part of this repo), which
+terminates TLS with the `pmi.moscow` certificate and routes by hostname.
+
+```
+Internet --https--> nginx-proxy --(pmi_network)--> web:80 (nginx + SPA) --> api:8000 --> db:5432
+```
+
+- [docker-compose.production.yml](docker-compose.production.yml) runs prebuilt images. Only `web` joins the
+  external `pmi_network` and advertises itself with `VIRTUAL_HOST` / `VIRTUAL_PORT`; `api` and `db` stay on the
+  internal network. No public host ports: `web` is bound to `127.0.0.1:${WEB_HOST_PORT:-8086}` for debugging only.
+- [deploy/vhost.d/](deploy/vhost.d) holds the nginx-proxy settings for `pmsim.pmi.moscow`: TLS and HSTS, plus
+  gzip, security headers and unbuffered 1 h reads for the server-sent events stream. The pipeline never touches
+  the shared proxy config.
+- [deploy-production.yml](.github/workflows/deploy-production.yml) (manual `workflow_dispatch`) builds and pushes
+  `ghcr.io/<repo>-api` and `-web`, renders `.env` from secrets, copies it and the compose file to the server,
+  then pulls the images and recreates the stack.
+
+One-time host setup:
+
+1. Make sure the proxy network exists: `docker network create pmi_network` (the deploy also creates it if missing).
+2. Copy `deploy/vhost.d/*` into the proxy's `vhost.d/` directory and reload nginx-proxy
+   (`docker exec <nginx-proxy> nginx -s reload`).
+3. Register the production redirect URIs (see the table above) in the Yandex and VK ID apps.
+
+GitHub configuration:
+
+| Kind | Name | Notes |
+| --- | --- | --- |
+| Secret | `PRODUCTION_SSH_HOST`, `PRODUCTION_SSH_USERNAME`, `PRODUCTION_SSH_KEY` | SSH access to the server |
+| Secret | `PRODUCTION_SSH_PORT` | Optional, default `22` |
+| Secret | `REGISTRY_TOKEN` | PAT with `read:packages`, used by the server to pull from GHCR |
+| Secret | `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET`, `YANDEX_REDIRECT_URI` | Yandex ID app |
+| Secret | `VK_CLIENT_ID`, `VK_REDIRECT_URI` | VK ID app |
+| Secret | `SESSION_SECRET`, `POSTGRES_PASSWORD` | `POSTGRES_USER` / `POSTGRES_DB` optional, default `simultrain` |
+| Variable | `DEPLOY_DIR` | Optional, default `/home/toptuk/pmsim` |
+| Variable | `VIRTUAL_HOST`, `WEB_HOST_PORT` | Optional, default `pmsim.pmi.moscow` / `8086` |
+
+Manual deploy on the server:
+
+```sh
+cd /home/toptuk/pmsim
+for s in api web; do
+  docker pull ghcr.io/toptuk/leanprojectsimulator-$s:latest
+  docker tag ghcr.io/toptuk/leanprojectsimulator-$s:latest simultrain-$s:latest
+done
+docker compose -f docker-compose.production.yml up -d --no-build --remove-orphans
+curl http://127.0.0.1:8086/api/health                  # {"ok":true}
+```
 
 ## Architecture
 
@@ -82,13 +138,15 @@ flowchart LR
   A --> D[(db: PostgreSQL)]
   B <-->|OAuth redirects| Y[Yandex ID]
   A -->|token + user info| Y
+  B <-->|OAuth redirects| V[VK ID: VK, OK, Mail.ru]
+  A -->|token + user info| V
 ```
 
 Three containers from [docker-compose.yml](docker-compose.yml):
 
 - **web** — multi-stage [frontend/Dockerfile](frontend/Dockerfile): Vite builds the SPA, nginx serves it.
   [nginx.conf](frontend/nginx.conf) proxies `/api/` (with buffering off for server-sent events) and `/auth/`
-  (the Yandex redirect URI) to the API, and falls back to `index.html` for client-side routes.
+  (the Yandex and VK ID redirect URIs) to the API, and falls back to `index.html` for client-side routes.
 - **api** — FastAPI on uvicorn ([backend/Dockerfile](backend/Dockerfile)). Stateless apart from the
   database, so it can be restarted at any time; the clock catches up on the next request.
 - **db** — PostgreSQL 16 with a named volume. JSON columns use `JSONB` on Postgres and plain `JSON` on SQLite.
@@ -103,7 +161,7 @@ backend/app/
   db.py              engine and session factory from DATABASE_URL
   models.py          SQLAlchemy tables
   schemas.py         request bodies (pydantic)
-  auth.py            Yandex client, cookie settings, current_user dependency
+  auth.py            Yandex and VK ID clients, cookie settings, current_user dependency
   routers/           thin HTTP layer: auth, scenarios, sessions
   engine/            the game, no HTTP
     clock.py         project time <-> real time
@@ -151,7 +209,7 @@ interacts with has its own table.
 
 | Table | Holds |
 | --- | --- |
-| `users` | Yandex ID, login, email, display name, avatar |
+| `users` | Yandex ID or VK ID, login, email, display name, avatar |
 | `sessions` | owner, frozen settings (`config`), clock, `state` JSON |
 | `assignments` | who works on what, at what percent |
 | `messages` | delivered mail and phone calls, read flag |
@@ -188,7 +246,10 @@ Formulas are documented at the top of [rules.py](backend/app/engine/rules.py). I
 
 ### Authentication
 
-Yandex ID with the OAuth 2.0 authorization code flow ([auth.py](backend/app/auth.py),
+Players sign in with Yandex ID, or with VK ID, which also covers Odnoklassniki and Mail.ru accounts.
+The landing page lists the four options.
+
+Yandex ID uses the OAuth 2.0 authorization code flow ([auth.py](backend/app/auth.py),
 [routers/auth.py](backend/app/routers/auth.py)):
 
 ```
@@ -205,14 +266,35 @@ Browser            API                                  Yandex
   |<---- 302 next ----|
 ```
 
+VK ID uses OAuth 2.1 with PKCE, as a public client (no client secret):
+
+```
+Browser            API                                  VK ID
+  | GET /api/auth/vk/login?provider=vk|ok|mail&next=/control
+  |------------------>| store state, next, PKCE code_verifier in cookie
+  |<---- 302 ---------| to id.vk.com/authorize?client_id&redirect_uri&state&code_challenge(S256)
+  |                   |   &scope=email&provider=vkid|ok_ru|mail_ru
+  |------------------------------------------------------->| user consents
+  |<------------------------------------------------------ 302 /auth/login-vk?code&state&device_id
+  |------------------>| check state (single use)
+  |                   |--- POST /oauth2/auth (code, code_verifier, device_id) -->|
+  |                   |--- POST /oauth2/user_info ------------------------------>|
+  |                   | upsert users row by vk_id, cookie uid = user.id
+  |<---- 302 next ----|
+```
+
+- A user row has either `yandex_id` or `vk_id`. Signing in with Yandex and with VK gives two separate
+  accounts; they are never merged by e-mail.
+
 - The login cookie is Starlette's signed `SessionMiddleware` cookie (`simultrain_session`, HttpOnly,
-  SameSite=Lax, 30 days, Secure when `COOKIE_SECURE=true`). No tokens are stored; Yandex is only asked
+  SameSite=Lax, 30 days, Secure when `COOKIE_SECURE=true`). No tokens are stored; the provider is only asked
   during sign-in.
 - `next` must be a same-site path; anything else becomes `/`.
 - `current_user` guards every `/api/sessions` route. A session belongs to the user who created it;
   someone else's session returns 404, as if it did not exist.
 - On startup `upgrade_schema()` adds `sessions.user_id` to databases created before sign-in existed
   (`create_all` never alters tables). Sessions from that time have no owner and are no longer reachable.
+  It also adds `users.vk_id` and makes `users.yandex_id` optional (on SQLite by rebuilding the table).
 
 ### Frontend
 
@@ -230,7 +312,7 @@ frontend/src/
 ```
 
 - Routes: `/` (public), `/control` and `/sim/:id/:view` (need sign-in). The guard asks `/api/auth/me`
-  once and otherwise sends the browser to Yandex with the full path as `next`.
+  once and otherwise sends the browser to `/?login=1&next=<full path>`, where the sign-in options open.
 - The server is the source of truth. Every action returns the full session state, which replaces the
   store's copy. While the clock runs, the store opens `GET /api/sessions/{id}/stream` (server-sent
   events, one state per second) and closes it when the clock stops.
@@ -245,6 +327,8 @@ frontend/src/
 | GET | `/api/health` | Liveness |
 | GET | `/api/auth/yandex/login?next=/path` | Redirect to Yandex ID |
 | GET | `/auth/login-yandex` | Yandex redirect URI: sign in, back to `next` |
+| GET | `/api/auth/vk/login?provider=vk\|ok\|mail&next=/path` | Redirect to VK ID (VK, Odnoklassniki, Mail.ru) |
+| GET | `/auth/login-vk` | VK ID redirect URL: sign in, back to `next` |
 | GET | `/api/auth/me` | Signed-in user, or 401 |
 | POST | `/api/auth/logout` | Sign out |
 | GET | `/api/scenarios` | Scenario list |

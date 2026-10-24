@@ -48,7 +48,7 @@ export const useSim = defineStore('sim', () => {
       return next
     } catch (e) {
       // signed out elsewhere or the cookie expired: sign in again and come back
-      if (e.status === 401) useAuth().login(window.location.pathname)
+      if (e.status === 401) useAuth().chooseLogin(window.location.pathname)
       error.value = e.message
       throw e
     } finally {

@@ -1,10 +1,14 @@
-"""Sign-in with Yandex ID (OAuth 2.0 authorization code flow).
+"""Sign-in with Yandex ID (OAuth 2.0) and VK ID (OAuth 2.1 with PKCE).
 
-Docs: https://yandex.ru/dev/id/doc/en/codes/code-url and
-https://yandex.ru/dev/id/doc/en/user-information. The signed-in user's id
-lives in the Starlette session cookie under "uid".
+Yandex docs: https://yandex.ru/dev/id/doc/en/codes/code-url and
+https://yandex.ru/dev/id/doc/en/user-information. VK ID docs:
+https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/api-integration/api-description
+- VK ID also signs in Odnoklassniki and Mail.ru accounts. The signed-in
+user's id lives in the Starlette session cookie under "uid".
 """
 
+import base64
+import hashlib
 import os
 import secrets
 from urllib.parse import urlencode
@@ -75,6 +79,85 @@ def get_yandex() -> YandexClient:
     return YandexClient(YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET, YANDEX_REDIRECT_URI)
 
 
+VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "")
+VK_REDIRECT_URI = os.getenv("VK_REDIRECT_URI", "http://localhost:8080/auth/login-vk")
+
+VK_AUTHORIZE_URL = "https://id.vk.com/authorize"
+VK_TOKEN_URL = "https://id.vk.com/oauth2/auth"
+VK_INFO_URL = "https://id.vk.com/oauth2/user_info"
+# our provider key -> VK ID "provider" parameter (which account to sign in with)
+VK_PROVIDERS = {"vk": "vkid", "ok": "ok_ru", "mail": "mail_ru"}
+
+
+class VkError(Exception):
+    pass
+
+
+def pkce_pair() -> tuple[str, str]:
+    """(code_verifier, S256 code_challenge)"""
+    verifier = secrets.token_urlsafe(48)
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return verifier, base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+class VkClient:
+    """Public client: PKCE plus device_id replace the client secret."""
+
+    def __init__(self, client_id: str, redirect_uri: str):
+        self.client_id = client_id
+        self.redirect_uri = redirect_uri
+
+    def authorize_url(self, state: str, challenge: str, provider: str = "vk") -> str:
+        query = {
+            "response_type": "code",
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "scope": "email",
+            "provider": VK_PROVIDERS.get(provider, VK_PROVIDERS["vk"]),
+        }
+        return f"{VK_AUTHORIZE_URL}?{urlencode(query)}"
+
+    def _post(self, url: str, data: dict) -> dict:
+        try:
+            r = httpx.post(url, data=data, timeout=10)
+        except httpx.HTTPError as e:
+            raise VkError(str(e)) from e
+        try:
+            body = r.json()
+        except ValueError as e:
+            raise VkError(f"bad response: {r.status_code}") from e
+        if r.status_code != 200 or "error" in body:
+            raise VkError(f"{url} failed: {r.status_code} {body.get('error')}")
+        return body
+
+    def exchange_code(self, code: str, verifier: str, device_id: str, state: str) -> str:
+        body = self._post(VK_TOKEN_URL, {
+            "grant_type": "authorization_code",
+            "code": code,
+            "code_verifier": verifier,
+            "client_id": self.client_id,
+            "device_id": device_id,
+            "redirect_uri": self.redirect_uri,
+            "state": state,
+        })
+        if "access_token" not in body:
+            raise VkError("token exchange failed: no access_token")
+        return body["access_token"]
+
+    def user_info(self, token: str) -> dict:
+        body = self._post(VK_INFO_URL, {"client_id": self.client_id, "access_token": token})
+        if not isinstance(body.get("user"), dict) or "user_id" not in body["user"]:
+            raise VkError("user info failed: no user")
+        return body["user"]
+
+
+def get_vk() -> VkClient:
+    return VkClient(VK_CLIENT_ID, VK_REDIRECT_URI)
+
+
 def safe_next(path: str | None) -> str:
     """Only same-site absolute paths, so the login can't redirect elsewhere."""
     if not path or not path.startswith("/") or path.startswith("//") or "\\" in path:
@@ -85,12 +168,15 @@ def safe_next(path: str | None) -> str:
 def avatar_url(user: m.User) -> str | None:
     if not user.avatar_id:
         return None
+    if user.avatar_id.startswith(("https://", "http://")):  # VK ID gives a full URL
+        return user.avatar_id
     return f"https://avatars.yandex.net/get-yapic/{user.avatar_id}/islands-68"
 
 
 def user_view(user: m.User) -> dict:
     return {
         "id": user.id,
+        "provider": "vk" if user.vk_id else "yandex",
         "login": user.login,
         "name": user.name or user.login,
         "email": user.email,

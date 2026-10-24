@@ -41,7 +41,10 @@ describe('api', () => {
   })
 
   it('builds the Yandex login URL with an encoded return path', () => {
-    expect(api.loginUrl('/sim/a b/office?x=1')).toBe('/api/auth/yandex/login?next=%2Fsim%2Fa%20b%2Foffice%3Fx%3D1')
+    expect(api.loginUrl('yandex', '/sim/a b/office?x=1')).toBe('/api/auth/yandex/login?next=%2Fsim%2Fa%20b%2Foffice%3Fx%3D1')
     expect(api.loginUrl()).toBe('/api/auth/yandex/login?next=%2F')
+    expect(api.loginUrl('vk', '/control')).toBe('/api/auth/vk/login?provider=vk&next=%2Fcontrol')
+    expect(api.loginUrl('ok', '/')).toBe('/api/auth/vk/login?provider=ok&next=%2F')
+    expect(api.loginUrl('mail', '/')).toBe('/api/auth/vk/login?provider=mail&next=%2F')
   })
 })

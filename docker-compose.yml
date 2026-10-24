@@ -20,6 +20,9 @@ services:
       YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:?set YANDEX_CLIENT_ID in .env}
       YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:?set YANDEX_CLIENT_SECRET in .env}
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-http://localhost:8080/auth/login-yandex}
+      # optional locally: without it the VK / OK / Mail.ru buttons fail at VK ID
+      VK_CLIENT_ID: ${VK_CLIENT_ID:-}
+      VK_REDIRECT_URI: ${VK_REDIRECT_URI:-http://localhost:8080/auth/login-vk}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     depends_on:

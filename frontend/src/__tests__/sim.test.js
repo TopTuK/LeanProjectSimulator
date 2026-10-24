@@ -33,8 +33,8 @@ describe('sim store', () => {
   it('sends the player to sign in when the login has expired', async () => {
     mockFetch({ 'GET /api/sessions/s1': [401, { detail: 'login required' }] })
     const auth = useAuth()
-    auth.login = vi.fn()
+    auth.chooseLogin = vi.fn()
     await expect(useSim().load('s1')).rejects.toMatchObject({ status: 401 })
-    expect(auth.login).toHaveBeenCalledWith(window.location.pathname)
+    expect(auth.chooseLogin).toHaveBeenCalledWith(window.location.pathname)
   })
 })

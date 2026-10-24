@@ -20,8 +20,8 @@ export function createAppRouter(history = createWebHistory()) {
     if (!to.meta.auth) return true
     const auth = useAuth()
     if (await auth.fetch()) return true
-    auth.login(to.fullPath)
-    return false
+    // the landing page opens the sign-in options and comes back here
+    return { path: '/', query: { login: '1', next: to.fullPath } }
   })
   return router
 }

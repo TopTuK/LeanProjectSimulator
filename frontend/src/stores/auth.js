@@ -25,8 +25,13 @@ export const useAuth = defineStore('auth', () => {
     return pending
   }
 
-  function login(next = '/') {
-    window.location.assign(api.loginUrl(next))
+  function login(provider = 'yandex', next = '/') {
+    window.location.assign(api.loginUrl(provider, next))
+  }
+
+  // the landing page lists the providers and comes back to next
+  function chooseLogin(next = '/') {
+    window.location.assign(`/?login=1&next=${encodeURIComponent(next)}`)
   }
 
   async function logout() {
@@ -34,5 +39,5 @@ export const useAuth = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, loaded, fetch, login, logout }
+  return { user, loaded, fetch, login, chooseLogin, logout }
 })

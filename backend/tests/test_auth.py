@@ -31,6 +31,7 @@ def test_callback_signs_in_and_returns_to_next(client, db):
     assert me.status_code == 200
     assert me.json() == {
         "id": me.json()["id"],
+        "provider": "yandex",
         "login": "user101",
         "name": "User 101",
         "email": "user101@yandex.ru",

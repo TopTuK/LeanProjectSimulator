@@ -39,10 +39,19 @@ describe('auth store', () => {
     expect(fetch).toHaveBeenLastCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }))
   })
 
-  it('login sends the browser to Yandex with the return path', () => {
+  it('login sends the browser to the chosen provider with the return path', () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
-    useAuth().login('/control')
-    expect(assign).toHaveBeenCalledWith('/api/auth/yandex/login?next=%2Fcontrol')
+    useAuth().login('yandex', '/control')
+    expect(assign).toHaveBeenLastCalledWith('/api/auth/yandex/login?next=%2Fcontrol')
+    useAuth().login('ok', '/control')
+    expect(assign).toHaveBeenLastCalledWith('/api/auth/vk/login?provider=ok&next=%2Fcontrol')
+  })
+
+  it('chooseLogin opens the sign-in options on the landing page', () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    useAuth().chooseLogin('/sim/a/office')
+    expect(assign).toHaveBeenCalledWith('/?login=1&next=%2Fsim%2Fa%2Foffice')
   })
 })

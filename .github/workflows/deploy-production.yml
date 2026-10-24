@@ -6,7 +6,7 @@ env:
   REGISTRY: ghcr.io
   # Directory on the production server holding docker-compose.production.yml and .env.
   # Change it here or set the DEPLOY_DIR repository variable.
-  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/srv/simultrain' }}
+  DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/home/toptuk/pmsim' }}
 
 jobs:
   build:
@@ -102,6 +102,14 @@ jobs:
             echo "::error::YANDEX_REDIRECT_URI secret is not set or empty (for production: https://pmsim.pmi.moscow/auth/login-yandex)"
             exit 1
           fi
+          if [ -z "${{ secrets.VK_CLIENT_ID }}" ]; then
+            echo "::error::VK_CLIENT_ID secret is not set or empty (the VK ID app id)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.VK_REDIRECT_URI }}" ]; then
+            echo "::error::VK_REDIRECT_URI secret is not set or empty (for production: https://pmsim.pmi.moscow/auth/login-vk)"
+            exit 1
+          fi
           if [ -z "${{ secrets.SESSION_SECRET }}" ]; then
             echo "::error::SESSION_SECRET secret is not set or empty"
             exit 1
@@ -123,10 +131,13 @@ jobs:
             echo "POSTGRES_USER=${{ secrets.POSTGRES_USER || 'simultrain' }}"
             echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
             echo "POSTGRES_DB=${{ secrets.POSTGRES_DB || 'simultrain' }}"
-            echo "WEB_PORT=${{ vars.WEB_PORT || '80' }}"
+            echo "VIRTUAL_HOST=${{ vars.VIRTUAL_HOST || 'pmsim.pmi.moscow' }}"
+            echo "WEB_HOST_PORT=${{ vars.WEB_HOST_PORT || '8086' }}"
             echo "YANDEX_CLIENT_ID=${{ secrets.YANDEX_CLIENT_ID }}"
             echo "YANDEX_CLIENT_SECRET=${{ secrets.YANDEX_CLIENT_SECRET }}"
             echo "YANDEX_REDIRECT_URI=${{ secrets.YANDEX_REDIRECT_URI }}"
+            echo "VK_CLIENT_ID=${{ secrets.VK_CLIENT_ID }}"
+            echo "VK_REDIRECT_URI=${{ secrets.VK_REDIRECT_URI }}"
             echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}"
             echo "COOKIE_SECURE=true"
           } > ${{ env.ENV_FILE_PATH }}
@@ -148,7 +159,8 @@ jobs:
             "cd ${{ env.DEPLOY_DIR }} && \
              mv production.env .env && \
              chmod 600 .env && \
-             docker login ${{ env.REGISTRY }} -u ${{ github.actor }} -p ${{ secrets.REGISTRY_TOKEN }} && \
+             echo '${{ secrets.REGISTRY_TOKEN }}' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin && \
+             (docker network inspect pmi_network >/dev/null 2>&1 || docker network create pmi_network) && \
              docker pull ${{ needs.build.outputs.api-image }}:latest && \
              docker pull ${{ needs.build.outputs.web-image }}:latest && \
              docker tag ${{ needs.build.outputs.api-image }}:latest simultrain-api:latest && \

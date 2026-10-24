@@ -21,7 +21,11 @@ const actionId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
 export const api = {
   me: () => request('GET', '/auth/me'),
   logout: () => request('POST', '/auth/logout'),
-  loginUrl: (next = '/') => `/api/auth/yandex/login?next=${encodeURIComponent(next)}`,
+  // yandex, or vk / ok / mail (all three go through VK ID)
+  loginUrl: (provider = 'yandex', next = '/') =>
+    provider === 'yandex'
+      ? `/api/auth/yandex/login?next=${encodeURIComponent(next)}`
+      : `/api/auth/vk/login?provider=${encodeURIComponent(provider)}&next=${encodeURIComponent(next)}`,
   scenarios: () => request('GET', '/scenarios'),
   create: (cfg) => request('POST', '/sessions', cfg),
   get: (id) => request('GET', `/sessions/${id}`),

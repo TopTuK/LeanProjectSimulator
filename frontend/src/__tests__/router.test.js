@@ -23,17 +23,18 @@ describe('router guard', () => {
     expect(auth.login).not.toHaveBeenCalled()
   })
 
-  it('sends anonymous visitors of /control to Yandex', async () => {
+  it('sends anonymous visitors of /control to the sign-in options', async () => {
     const { router, auth } = await setup([401, { detail: 'login required' }])
     await router.push('/control')
     expect(router.currentRoute.value.path).toBe('/')
-    expect(auth.login).toHaveBeenCalledWith('/control')
+    expect(router.currentRoute.value.query).toEqual({ login: '1', next: '/control' })
+    expect(auth.login).not.toHaveBeenCalled()
   })
 
   it('keeps the full simulation path for after sign-in', async () => {
-    const { router, auth } = await setup([401, { detail: 'login required' }])
+    const { router } = await setup([401, { detail: 'login required' }])
     await router.push('/sim/abc/gantt?tab=1')
-    expect(auth.login).toHaveBeenCalledWith('/sim/abc/gantt?tab=1')
+    expect(router.currentRoute.value.query.next).toBe('/sim/abc/gantt?tab=1')
   })
 
   it('lets signed-in users through', async () => {

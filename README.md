@@ -78,54 +78,9 @@ cd frontend && npm test          # Vitest + jsdom
 
 ## Production deployment
 
-Production runs at https://pmsim.pmi.moscow behind the shared **nginx-proxy** (not part of this repo), which
-terminates TLS with the `pmi.moscow` certificate and routes by hostname.
-
-```
-Internet --https--> nginx-proxy --(pmi_network)--> web:80 (nginx + SPA) --> api:8000 --> db:5432
-```
-
-- [docker-compose.production.yml](docker-compose.production.yml) runs prebuilt images. Only `web` joins the
-  external `pmi_network` and advertises itself with `VIRTUAL_HOST` / `VIRTUAL_PORT`; `api` and `db` stay on the
-  internal network. No public host ports: `web` is bound to `127.0.0.1:${WEB_HOST_PORT:-8086}` for debugging only.
-- [deploy/vhost.d/](deploy/vhost.d) holds the nginx-proxy settings for `pmsim.pmi.moscow`: TLS and HSTS, plus
-  gzip, security headers and unbuffered 1 h reads for the server-sent events stream. The pipeline never touches
-  the shared proxy config.
-- [deploy-production.yml](.github/workflows/deploy-production.yml) (manual `workflow_dispatch`) builds and pushes
-  `ghcr.io/<repo>-api` and `-web`, renders `.env` from secrets, copies it and the compose file to the server,
-  then pulls the images and recreates the stack.
-
-One-time host setup:
-
-1. Make sure the proxy network exists: `docker network create pmi_network` (the deploy also creates it if missing).
-2. Copy `deploy/vhost.d/*` into the proxy's `vhost.d/` directory and reload nginx-proxy
-   (`docker exec <nginx-proxy> nginx -s reload`).
-3. Register the production redirect URIs (see the table above) in the Yandex and VK ID apps.
-
-GitHub configuration:
-
-| Kind | Name | Notes |
-| --- | --- | --- |
-| Secret | `PRODUCTION_SSH_HOST`, `PRODUCTION_SSH_USERNAME`, `PRODUCTION_SSH_KEY` | SSH access to the server |
-| Secret | `PRODUCTION_SSH_PORT` | Optional, default `22` |
-| Secret | `REGISTRY_TOKEN` | PAT with `read:packages`, used by the server to pull from GHCR |
-| Secret | `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET`, `YANDEX_REDIRECT_URI` | Yandex ID app |
-| Secret | `VK_CLIENT_ID`, `VK_REDIRECT_URI` | VK ID app |
-| Secret | `SESSION_SECRET`, `POSTGRES_PASSWORD` | `POSTGRES_USER` / `POSTGRES_DB` optional, default `simultrain` |
-| Variable | `DEPLOY_DIR` | Optional, default `/home/toptuk/pmsim` |
-| Variable | `VIRTUAL_HOST`, `WEB_HOST_PORT` | Optional, default `pmsim.pmi.moscow` / `8086` |
-
-Manual deploy on the server:
-
-```sh
-cd /home/toptuk/pmsim
-for s in api web; do
-  docker pull ghcr.io/toptuk/leanprojectsimulator-$s:latest
-  docker tag ghcr.io/toptuk/leanprojectsimulator-$s:latest simultrain-$s:latest
-done
-docker compose -f docker-compose.production.yml up -d --no-build --remove-orphans
-curl http://127.0.0.1:8086/api/health                  # {"ok":true}
-```
+Production runs at https://pmsim.pmi.moscow behind the shared nginx-proxy on `pmi_network`, deployed with the
+manual **Manual deploy production** workflow. See **[deployment.md](deployment.md)** for the architecture,
+one-time server setup, GitHub secrets, deploying, rollback, backups and troubleshooting.
 
 ## Architecture
 

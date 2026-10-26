@@ -8,11 +8,14 @@ from sqlalchemy.orm import Session
 from app import models as m
 from app.auth import (
     VK_PROVIDERS,
+    GoogleClient,
+    GoogleError,
     VkClient,
     VkError,
     YandexClient,
     YandexError,
     current_user,
+    get_google,
     get_vk,
     get_yandex,
     pkce_pair,
@@ -126,6 +129,50 @@ def vk_callback(
     user.name = " ".join(p for p in (info.get("first_name"), info.get("last_name")) if p) or None
     user.email = info.get("email") or None
     user.avatar_id = info.get("avatar") or None
+    user.last_login_at = utcnow()
+    db.commit()
+    return _sign_in(request, user, next_path)
+
+
+@router.get("/api/auth/google/login")
+def google_login(request: Request, next: str | None = None, google: GoogleClient = Depends(get_google)):
+    state = _start(request, next)
+    verifier, challenge = pkce_pair()
+    request.session["oauth_verifier"] = verifier
+    return RedirectResponse(google.authorize_url(state, challenge), status_code=302)
+
+
+@router.get("/auth/login-google")
+def google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+    google: GoogleClient = Depends(get_google),
+):
+    """Redirect URI registered in the Google Cloud OAuth client."""
+    expected = request.session.pop("oauth_state", None)
+    next_path = request.session.pop("oauth_next", "/")
+    verifier = request.session.pop("oauth_verifier", None)
+    if error:
+        return RedirectResponse("/?auth_error=1", status_code=302)
+    _check_state(expected, code, state)
+    if not verifier:
+        raise HTTPException(status_code=400, detail="invalid oauth state")
+    try:
+        info = google.user_info(google.exchange_code(code, verifier))
+    except GoogleError:
+        return RedirectResponse("/?auth_error=1", status_code=302)
+
+    google_id = str(info["sub"])
+    user = db.scalar(select(m.User).where(m.User.google_id == google_id))
+    if user is None:
+        user = m.User(google_id=google_id)
+        db.add(user)
+    user.name = info.get("name") or None
+    user.email = (info.get("email") or None) if info.get("email_verified") else None
+    user.avatar_id = info.get("picture") or None
     user.last_login_at = utcnow()
     db.commit()
     return _sign_in(request, user, next_path)

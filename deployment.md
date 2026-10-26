@@ -81,6 +81,7 @@ Register these redirect URIs:
 | --- | --- | --- |
 | Yandex ID | https://oauth.yandex.ru, app settings | `https://pmsim.pmi.moscow/auth/login-yandex` |
 | VK ID (VK, Odnoklassniki, Mail.ru) | https://id.vk.com/about/business, trusted Redirect URL | `https://pmsim.pmi.moscow/auth/login-vk` |
+| Google | https://console.cloud.google.com/apis/credentials, OAuth client "Web application", Authorized redirect URIs | `https://pmsim.pmi.moscow/auth/login-google` |
 
 ### 3. GitHub secrets and variables
 
@@ -98,6 +99,8 @@ early with a clear message if one is missing.
 | Secret | `YANDEX_REDIRECT_URI` | yes | `https://pmsim.pmi.moscow/auth/login-yandex` |
 | Secret | `VK_CLIENT_ID` | yes | VK ID app id. Not the secret or service key: the flow uses PKCE |
 | Secret | `VK_REDIRECT_URI` | yes | `https://pmsim.pmi.moscow/auth/login-vk` |
+| Secret | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | yes | Google OAuth client credentials. The id ends in `.apps.googleusercontent.com`, the secret starts with `GOCSPX-` |
+| Secret | `GOOGLE_REDIRECT_URI` | yes | `https://pmsim.pmi.moscow/auth/login-google` |
 | Secret | `SESSION_SECRET` | yes | Long random string (`openssl rand -hex 32`). Keep it stable, or every user is signed out |
 | Secret | `POSTGRES_PASSWORD` | yes | Set before the first deploy. Postgres keeps the password from the first start of the volume |
 | Secret | `POSTGRES_USER`, `POSTGRES_DB` | no | Default `simultrain` |
@@ -171,7 +174,7 @@ curl -s https://pmsim.pmi.moscow/api/health                 # {"ok":true}
 
 In the browser:
 
-1. Sign in with Yandex and with VK.
+1. Sign in with Yandex, with VK and with Google.
 2. Start a simulation and let the clock run for more than a minute. The clock should keep ticking without
    reconnect gaps.
 
@@ -208,6 +211,7 @@ Two secrets need extra care:
 | Certificate warning | The `vhost.d` snippet is missing, or the cert doesn't cover the host | Copy `deploy/vhost.d/*` to the proxy and reload it; check the `certs/pmi.moscow.*` files |
 | Yandex: `redirect_uri` mismatch | The secret differs from the app setting | `YANDEX_REDIRECT_URI` must exactly equal the URI registered in the Yandex app |
 | VK ID error after consent | Redirect URL not trusted, or wrong app id | Add `https://pmsim.pmi.moscow/auth/login-vk` to the VK ID app; check `VK_CLIENT_ID` |
+| Google: `redirect_uri_mismatch` or `invalid_client` | URI not authorized, or wrong id / secret | Add `https://pmsim.pmi.moscow/auth/login-google` to the OAuth client; check `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` |
 | Signed in, but bounced back to the landing page | The cookie isn't stored | The site must be opened over https (`COOKIE_SECURE=true`); avoid mixing hosts |
 | The clock freezes or jumps every minute | The proxy buffers or times out the SSE stream | Check that `pmsim.pmi.moscow_location` is in the proxy's `vhost.d/` and the proxy was reloaded |
 | `api` restarts with a DB authentication error | `POSTGRES_PASSWORD` changed after the volume was created | See [Rotating secrets](#rotating-secrets) |

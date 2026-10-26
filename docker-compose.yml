@@ -23,6 +23,10 @@ services:
       # optional locally: without it the VK / OK / Mail.ru buttons fail at VK ID
       VK_CLIENT_ID: ${VK_CLIENT_ID:-}
       VK_REDIRECT_URI: ${VK_REDIRECT_URI:-http://localhost:8080/auth/login-vk}
+      # optional locally: without it the Google button fails at Google
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/auth/login-google}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     depends_on:

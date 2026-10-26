@@ -1,10 +1,13 @@
-"""Sign-in with Yandex ID (OAuth 2.0) and VK ID (OAuth 2.1 with PKCE).
+"""Sign-in with Yandex ID (OAuth 2.0), VK ID (OAuth 2.1 with PKCE) and
+Google (OpenID Connect, code flow with a client secret plus PKCE).
 
 Yandex docs: https://yandex.ru/dev/id/doc/en/codes/code-url and
 https://yandex.ru/dev/id/doc/en/user-information. VK ID docs:
 https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/api-integration/api-description
-- VK ID also signs in Odnoklassniki and Mail.ru accounts. The signed-in
-user's id lives in the Starlette session cookie under "uid".
+- VK ID also signs in Odnoklassniki and Mail.ru accounts. Google docs:
+https://developers.google.com/identity/protocols/oauth2/web-server and
+https://developers.google.com/identity/openid-connect/openid-connect. The
+signed-in user's id lives in the Starlette session cookie under "uid".
 """
 
 import base64
@@ -160,6 +163,79 @@ def get_vk() -> VkClient:
     return VkClient(VK_CLIENT_ID, VK_REDIRECT_URI)
 
 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8080/auth/login-google")
+
+GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+
+
+class GoogleError(Exception):
+    pass
+
+
+class GoogleClient:
+    """Confidential client: the client secret plus PKCE."""
+
+    def __init__(self, client_id: str, client_secret: str, redirect_uri: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.redirect_uri = redirect_uri
+
+    def authorize_url(self, state: str, challenge: str) -> str:
+        query = {
+            "response_type": "code",
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "scope": "openid email profile",
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "prompt": "select_account",
+        }
+        return f"{GOOGLE_AUTHORIZE_URL}?{urlencode(query)}"
+
+    def _request(self, method: str, url: str, **kwargs) -> dict:
+        try:
+            r = httpx.request(method, url, timeout=10, **kwargs)
+        except httpx.HTTPError as e:
+            raise GoogleError(str(e)) from e
+        try:
+            body = r.json()
+        except ValueError as e:
+            raise GoogleError(f"bad response: {r.status_code}") from e
+        if not isinstance(body, dict):
+            raise GoogleError(f"bad response: {r.status_code}")
+        if r.status_code != 200 or "error" in body:
+            raise GoogleError(f"{url} failed: {r.status_code} {body.get('error')}")
+        return body
+
+    def exchange_code(self, code: str, verifier: str) -> str:
+        body = self._request("POST", GOOGLE_TOKEN_URL, data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "code_verifier": verifier,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "redirect_uri": self.redirect_uri,
+        })
+        if "access_token" not in body:
+            raise GoogleError("token exchange failed: no access_token")
+        return body["access_token"]
+
+    def user_info(self, token: str) -> dict:
+        body = self._request("GET", GOOGLE_INFO_URL, headers={"Authorization": f"Bearer {token}"})
+        if not body.get("sub"):
+            raise GoogleError("user info failed: no sub")
+        return body
+
+
+def get_google() -> GoogleClient:
+    return GoogleClient(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI)
+
+
 def safe_next(path: str | None) -> str:
     """Only same-site absolute paths, so the login can't redirect elsewhere."""
     if not path or not path.startswith("/") or path.startswith("//") or "\\" in path:
@@ -170,15 +246,21 @@ def safe_next(path: str | None) -> str:
 def avatar_url(user: m.User) -> str | None:
     if not user.avatar_id:
         return None
-    if user.avatar_id.startswith(("https://", "http://")):  # VK ID gives a full URL
+    if user.avatar_id.startswith(("https://", "http://")):  # VK ID and Google give a full URL
         return user.avatar_id
     return f"https://avatars.yandex.net/get-yapic/{user.avatar_id}/islands-68"
+
+
+def provider_of(user: m.User) -> str:
+    if user.google_id:
+        return "google"
+    return "vk" if user.vk_id else "yandex"
 
 
 def user_view(user: m.User) -> dict:
     return {
         "id": user.id,
-        "provider": "vk" if user.vk_id else "yandex",
+        "provider": provider_of(user),
         "login": user.login,
         "name": user.name or user.login,
         "email": user.email,

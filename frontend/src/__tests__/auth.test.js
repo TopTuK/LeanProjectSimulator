@@ -46,6 +46,8 @@ describe('auth store', () => {
     expect(assign).toHaveBeenLastCalledWith('/api/auth/yandex/login?next=%2Fcontrol')
     useAuth().login('ok', '/control')
     expect(assign).toHaveBeenLastCalledWith('/api/auth/vk/login?provider=ok&next=%2Fcontrol')
+    useAuth().login('google', '/control')
+    expect(assign).toHaveBeenLastCalledWith('/api/auth/google/login?next=%2Fcontrol')
   })
 
   it('chooseLogin opens the sign-in options on the landing page', () => {

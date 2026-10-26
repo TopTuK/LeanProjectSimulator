@@ -46,5 +46,6 @@ describe('api', () => {
     expect(api.loginUrl('vk', '/control')).toBe('/api/auth/vk/login?provider=vk&next=%2Fcontrol')
     expect(api.loginUrl('ok', '/')).toBe('/api/auth/vk/login?provider=ok&next=%2F')
     expect(api.loginUrl('mail', '/')).toBe('/api/auth/vk/login?provider=mail&next=%2F')
+    expect(api.loginUrl('google', '/control')).toBe('/api/auth/google/login?next=%2Fcontrol')
   })
 })

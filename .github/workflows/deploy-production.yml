@@ -110,6 +110,18 @@ jobs:
             echo "::error::VK_REDIRECT_URI secret is not set or empty (for production: https://pmsim.pmi.moscow/auth/login-vk)"
             exit 1
           fi
+          if [ -z "${{ secrets.GOOGLE_CLIENT_ID }}" ]; then
+            echo "::error::GOOGLE_CLIENT_ID secret is not set or empty (ends in .apps.googleusercontent.com)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
+            echo "::error::GOOGLE_CLIENT_SECRET secret is not set or empty"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GOOGLE_REDIRECT_URI }}" ]; then
+            echo "::error::GOOGLE_REDIRECT_URI secret is not set or empty (for production: https://pmsim.pmi.moscow/auth/login-google)"
+            exit 1
+          fi
           if [ -z "${{ secrets.SESSION_SECRET }}" ]; then
             echo "::error::SESSION_SECRET secret is not set or empty"
             exit 1
@@ -138,6 +150,9 @@ jobs:
             echo "YANDEX_REDIRECT_URI=${{ secrets.YANDEX_REDIRECT_URI }}"
             echo "VK_CLIENT_ID=${{ secrets.VK_CLIENT_ID }}"
             echo "VK_REDIRECT_URI=${{ secrets.VK_REDIRECT_URI }}"
+            echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}"
             echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}"
             echo "COOKIE_SECURE=true"
           } > ${{ env.ENV_FILE_PATH }}

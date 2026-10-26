@@ -46,6 +46,11 @@ def upgrade_schema(eng: Engine = engine) -> None:
         with eng.begin() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN vk_id VARCHAR(64)"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_vk_id ON users (vk_id)"))
+    # Google sign-in
+    if "google_id" not in {c["name"] for c in inspect(eng).get_columns("users")}:
+        with eng.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN google_id VARCHAR(64)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id)"))
 
 
 def init_db(retries: int = 30) -> None:

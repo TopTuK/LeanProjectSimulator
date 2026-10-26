@@ -11,11 +11,24 @@ os.environ["YANDEX_CLIENT_SECRET"] = "test-secret"
 os.environ["YANDEX_REDIRECT_URI"] = "http://testserver/auth/login-yandex"
 os.environ["VK_CLIENT_ID"] = "test-vk"
 os.environ["VK_REDIRECT_URI"] = "http://testserver/auth/login-vk"
+os.environ["GOOGLE_CLIENT_ID"] = "test-google.apps.googleusercontent.com"
+os.environ["GOOGLE_CLIENT_SECRET"] = "test-google-secret"
+os.environ["GOOGLE_REDIRECT_URI"] = "http://testserver/auth/login-google"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.auth import VkClient, VkError, YandexClient, YandexError, get_vk, get_yandex  # noqa: E402
+from app.auth import (  # noqa: E402
+    GoogleClient,
+    GoogleError,
+    VkClient,
+    VkError,
+    YandexClient,
+    YandexError,
+    get_google,
+    get_vk,
+    get_yandex,
+)
 from app.db import SessionLocal  # noqa: E402
 from app.engine.scenario import get_scenario  # noqa: E402
 from app.main import app, init_db  # noqa: E402
@@ -90,6 +103,49 @@ def login_vk(client: TestClient, vk_id: str = "1", provider: str | None = None, 
     )
 
 
+class FakeGoogle(GoogleClient):
+    """Google without the network: the authorization code is the Google "sub"."""
+
+    def __init__(self):
+        super().__init__("test-google.apps.googleusercontent.com", "test-google-secret",
+                         "http://testserver/auth/login-google")
+        self.fail = False
+        self.email_verified = True
+        self.exchanges: list[dict] = []
+
+    def exchange_code(self, code: str, verifier: str) -> str:
+        if self.fail:
+            raise GoogleError("boom")
+        self.exchanges.append({"code": code, "verifier": verifier})
+        return f"token-{code}"
+
+    def user_info(self, token: str) -> dict:
+        uid = token.removeprefix("token-")
+        return {
+            "sub": uid,
+            "name": f"Anna G{uid}",
+            "email": f"g{uid}@gmail.com",
+            "email_verified": self.email_verified,
+            "picture": f"https://lh3.googleusercontent.com/a/{uid}",
+        }
+
+
+def login_google(client: TestClient, google_id: str = "1", next: str | None = None):
+    """Walk the Google redirect flow; returns the callback response."""
+    params = {"next": next} if next is not None else {}
+    r = client.get("/api/auth/google/login", params=params, follow_redirects=False)
+    state = parse_qs(urlparse(r.headers["location"]).query)["state"][0]
+    return client.get("/auth/login-google", params={"code": google_id, "state": state}, follow_redirects=False)
+
+
+@pytest.fixture
+def google():
+    fake = FakeGoogle()
+    app.dependency_overrides[get_google] = lambda: fake
+    yield fake
+    app.dependency_overrides.pop(get_google, None)
+
+
 @pytest.fixture
 def vk():
     fake = FakeVk()
@@ -107,7 +163,7 @@ def yandex():
 
 
 @pytest.fixture
-def client(yandex, vk):
+def client(yandex, vk, google):
     with TestClient(app) as c:
         yield c
 

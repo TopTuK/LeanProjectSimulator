@@ -31,6 +31,9 @@ services:
       YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:?set YANDEX_REDIRECT_URI in .env}
       VK_CLIENT_ID: ${VK_CLIENT_ID:?set VK_CLIENT_ID in .env}
       VK_REDIRECT_URI: ${VK_REDIRECT_URI:?set VK_REDIRECT_URI in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in .env}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET in .env}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:?set GOOGLE_REDIRECT_URI in .env}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       # production is served over https, so the cookie needs the Secure flag
       COOKIE_SECURE: ${COOKIE_SECURE:-true}

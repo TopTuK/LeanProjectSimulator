@@ -162,10 +162,10 @@ class DecisionOption(Base):
 
 
 class User(Base):
-    """A player signed in with Yandex ID or VK ID (VK, Odnoklassniki, Mail.ru).
+    """A player signed in with Yandex ID, VK ID (VK, Odnoklassniki, Mail.ru) or Google.
 
-    Exactly one of yandex_id / vk_id is set. avatar_id is a Yandex avatar id
-    or, for VK users, a full avatar URL.
+    Exactly one of yandex_id / vk_id / google_id is set. avatar_id is a Yandex
+    avatar id or, for VK and Google users, a full avatar URL.
     """
 
     __tablename__ = "users"
@@ -173,6 +173,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     yandex_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     vk_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    google_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     login: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)

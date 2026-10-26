@@ -6,7 +6,7 @@ export default {
       'You are the project manager. Plan the team, start the clock, answer mail and phone calls, and take decisions while cost, schedule, quality and motivation react in real time.',
     start: 'Start simulation',
     resume: 'Continue last simulation',
-    note: 'Demo mode: sign in with Yandex, VK, Odnoklassniki or Mail.ru to play. The simulation stops at the end of week 1.',
+    note: 'Demo mode: sign in with Yandex, VK, Odnoklassniki, Mail.ru or Google to play. The simulation stops at the end of week 1.',
   },
   auth: {
     login: 'Sign in',
@@ -16,7 +16,7 @@ export default {
     logout: 'Sign out',
     error: 'Sign-in failed. Please try again.',
     chooseProvider: 'Sign in with',
-    providers: { yandex: 'Yandex ID', vk: 'VK ID', ok: 'Odnoklassniki', mail: 'Mail.ru' },
+    providers: { yandex: 'Yandex ID', vk: 'VK ID', ok: 'Odnoklassniki', mail: 'Mail.ru', google: 'Google' },
   },
   control: {
     title: 'Simulation control',

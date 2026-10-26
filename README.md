@@ -1,17 +1,17 @@
 # SimulTrain Demo
 
 A project-management business game modelled on the flow described in [behavior.md](behavior.md):
-landing page → sign in with Yandex, VK, Odnoklassniki or Mail.ru → simulation control → a one-week playable demo with a running clock,
+landing page → sign in with Yandex, VK, Odnoklassniki, Mail.ru or Google → simulation control → a one-week playable demo with a running clock,
 mail, phone calls, decisions, and live Cost / Schedule / Quality / Motivation indexes.
 Scenario content ("Webshop Launch") and scoring rules are original.
 
 Stack: Vue 3 + Pinia + Tailwind CSS v4 (Vite), FastAPI + SQLAlchemy 2, PostgreSQL 16, nginx.
-UI and scenario in English and Russian. Sign-in with Yandex ID or VK ID (VK, Odnoklassniki, Mail.ru).
+UI and scenario in English and Russian. Sign-in with Yandex ID, VK ID (VK, Odnoklassniki, Mail.ru) or Google.
 
 ## Quick start
 
 ```sh
-cp .env.example .env   # fill in the Yandex ID and VK ID apps and SESSION_SECRET
+cp .env.example .env   # fill in the Yandex ID, VK ID and Google apps and SESSION_SECRET
 docker compose up --build
 ```
 
@@ -28,6 +28,8 @@ All settings come from environment variables; `docker compose` reads them from `
 | `YANDEX_REDIRECT_URI` | `http://localhost:8080/auth/login-yandex` | Must equal a Redirect URI registered in the Yandex app |
 | `VK_CLIENT_ID` | — (required in production) | VK ID app id from https://id.vk.com/about/business (VK, Odnoklassniki, Mail.ru sign-in). The app's secret and service keys are not used |
 | `VK_REDIRECT_URI` | `http://localhost:8080/auth/login-vk` | Must equal a trusted Redirect URL of the VK ID app |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — (required in production) | OAuth client ("Web application") from https://console.cloud.google.com/apis/credentials. The id ends in `.apps.googleusercontent.com` |
+| `GOOGLE_REDIRECT_URI` | `http://localhost:8080/auth/login-google` | Must equal an Authorized redirect URI of the Google OAuth client |
 | `SESSION_SECRET` | — (required) | Signs the login cookie; keep it stable or everybody is signed out on restart |
 | `COOKIE_SECURE` | `false` | `true` when served over https; must be `false` on plain-http localhost |
 | `DATABASE_URL` | `sqlite:///./simultrain.db` | SQLAlchemy URL; compose points it at the `db` service |
@@ -36,13 +38,13 @@ All settings come from environment variables; `docker compose` reads them from `
 | `VIRTUAL_HOST` | `pmsim.pmi.moscow` | Production only: hostname nginx-proxy routes to the web container |
 | `WEB_HOST_PORT` | `8086` | Production only: loopback port of the web container, for debugging on the host |
 
-Redirect URIs to register in the Yandex app and the VK ID app:
+Redirect URIs to register in the Yandex app, the VK ID app and the Google OAuth client:
 
-| Environment | Yandex redirect URI | VK ID redirect URL |
-| --- | --- | --- |
-| Production | `https://pmsim.pmi.moscow/auth/login-yandex` | `https://pmsim.pmi.moscow/auth/login-vk` |
-| `docker compose` on localhost | `http://localhost:8080/auth/login-yandex` | `http://localhost:8080/auth/login-vk` |
-| Vite dev server | `http://localhost:5173/auth/login-yandex` | `http://localhost:5173/auth/login-vk` |
+| Environment | Yandex redirect URI | VK ID redirect URL | Google redirect URI |
+| --- | --- | --- | --- |
+| Production | `https://pmsim.pmi.moscow/auth/login-yandex` | `https://pmsim.pmi.moscow/auth/login-vk` | `https://pmsim.pmi.moscow/auth/login-google` |
+| `docker compose` on localhost | `http://localhost:8080/auth/login-yandex` | `http://localhost:8080/auth/login-vk` | `http://localhost:8080/auth/login-google` |
+| Vite dev server | `http://localhost:5173/auth/login-yandex` | `http://localhost:5173/auth/login-vk` | `http://localhost:5173/auth/login-google` |
 
 Use the same host in the browser as in the redirect URI (`localhost` and `127.0.0.1` have separate cookies).
 
@@ -55,6 +57,7 @@ export DATABASE_URL=postgresql+psycopg://simultrain:simultrain@localhost:5432/si
 export YANDEX_CLIENT_ID=... YANDEX_CLIENT_SECRET=... SESSION_SECRET=dev-secret COOKIE_SECURE=false
 export YANDEX_REDIRECT_URI=http://localhost:5173/auth/login-yandex
 export VK_REDIRECT_URI=http://localhost:5173/auth/login-vk
+export GOOGLE_REDIRECT_URI=http://localhost:5173/auth/login-google
 uvicorn app.main:app --reload
 cd frontend && npm install && npm run dev    # http://localhost:5173, proxies /api and /auth to :8000
 ```
@@ -69,8 +72,8 @@ cd backend && pytest -q          # or: docker compose exec api pytest -q
 cd frontend && npm test          # Vitest + jsdom
 ```
 
-- **Backend** ([backend/tests](backend/tests)) runs against a throwaway SQLite database. Yandex and VK ID are replaced
-  by `FakeYandex` / `FakeVk` in [conftest.py](backend/tests/conftest.py); the `login()` helper walks the real redirect
+- **Backend** ([backend/tests](backend/tests)) runs against a throwaway SQLite database. Yandex, VK ID and Google are replaced
+  by `FakeYandex` / `FakeVk` / `FakeGoogle` in [conftest.py](backend/tests/conftest.py); the `login()` helper walks the real redirect
   flow, and the `auth_client` fixture is a signed-in client. Covers clock maths, rules, a full demo week,
   sign-in (state check, open-redirect guard, errors), per-user access and the schema upgrade.
 - **Frontend** ([frontend/src/\_\_tests\_\_](frontend/src/__tests__)) stubs `fetch`. Covers the API client,
@@ -95,13 +98,15 @@ flowchart LR
   A -->|token + user info| Y
   B <-->|OAuth redirects| V[VK ID: VK, OK, Mail.ru]
   A -->|token + user info| V
+  B <-->|OAuth redirects| G[Google]
+  A -->|token + user info| G
 ```
 
 Three containers from [docker-compose.yml](docker-compose.yml):
 
 - **web** — multi-stage [frontend/Dockerfile](frontend/Dockerfile): Vite builds the SPA, nginx serves it.
   [nginx.conf](frontend/nginx.conf) proxies `/api/` (with buffering off for server-sent events) and `/auth/`
-  (the Yandex and VK ID redirect URIs) to the API, and falls back to `index.html` for client-side routes.
+  (the Yandex, VK ID and Google redirect URIs) to the API, and falls back to `index.html` for client-side routes.
 - **api** — FastAPI on uvicorn ([backend/Dockerfile](backend/Dockerfile)). Stateless apart from the
   database, so it can be restarted at any time; the clock catches up on the next request.
 - **db** — PostgreSQL 16 with a named volume. JSON columns use `JSONB` on Postgres and plain `JSON` on SQLite.
@@ -116,7 +121,7 @@ backend/app/
   db.py              engine and session factory from DATABASE_URL
   models.py          SQLAlchemy tables
   schemas.py         request bodies (pydantic)
-  auth.py            Yandex and VK ID clients, cookie settings, current_user dependency
+  auth.py            Yandex, VK ID and Google clients, cookie settings, current_user dependency
   routers/           thin HTTP layer: auth, scenarios, sessions
   engine/            the game, no HTTP
     clock.py         project time <-> real time
@@ -164,7 +169,7 @@ interacts with has its own table.
 
 | Table | Holds |
 | --- | --- |
-| `users` | Yandex ID or VK ID, login, email, display name, avatar |
+| `users` | Yandex ID, VK ID or Google id, login, email, display name, avatar |
 | `sessions` | owner, frozen settings (`config`), clock, `state` JSON |
 | `assignments` | who works on what, at what percent |
 | `messages` | delivered mail and phone calls, read flag |
@@ -201,8 +206,8 @@ Formulas are documented at the top of [rules.py](backend/app/engine/rules.py). I
 
 ### Authentication
 
-Players sign in with Yandex ID, or with VK ID, which also covers Odnoklassniki and Mail.ru accounts.
-The landing page lists the four options.
+Players sign in with Yandex ID, with VK ID, which also covers Odnoklassniki and Mail.ru accounts, or with
+Google. The landing page lists the five options.
 
 Yandex ID uses the OAuth 2.0 authorization code flow ([auth.py](backend/app/auth.py),
 [routers/auth.py](backend/app/routers/auth.py)):
@@ -238,8 +243,26 @@ Browser            API                                  VK ID
   |<---- 302 next ----|
 ```
 
-- A user row has either `yandex_id` or `vk_id`. Signing in with Yandex and with VK gives two separate
-  accounts; they are never merged by e-mail.
+Google uses the OpenID Connect authorization code flow as a confidential client: the client secret plus PKCE.
+
+```
+Browser            API                                  Google
+  | GET /api/auth/google/login?next=/control
+  |------------------>| store state, next, PKCE code_verifier in cookie
+  |<---- 302 ---------| to accounts.google.com/o/oauth2/v2/auth?client_id&redirect_uri&state
+  |                   |   &code_challenge(S256)&scope=openid email profile
+  |------------------------------------------------------->| user consents
+  |<------------------------------------------------------ 302 /auth/login-google?code&state
+  |------------------>| check state (single use)
+  |                   |--- POST oauth2.googleapis.com/token (code, client secret, code_verifier) -->|
+  |                   |--- GET openidconnect.googleapis.com/v1/userinfo ------------------------->|
+  |                   | upsert users row by google_id (the "sub" claim), cookie uid = user.id
+  |<---- 302 next ----|
+```
+
+- A user row has exactly one of `yandex_id`, `vk_id` or `google_id`. Signing in with different providers
+  gives separate accounts; they are never merged by e-mail. A Google e-mail is stored only when Google marks
+  it verified.
 
 - The login cookie is Starlette's signed `SessionMiddleware` cookie (`simultrain_session`, HttpOnly,
   SameSite=Lax, 30 days, Secure when `COOKIE_SECURE=true`). No tokens are stored; the provider is only asked
@@ -249,7 +272,7 @@ Browser            API                                  VK ID
   someone else's session returns 404, as if it did not exist.
 - On startup `upgrade_schema()` adds `sessions.user_id` to databases created before sign-in existed
   (`create_all` never alters tables). Sessions from that time have no owner and are no longer reachable.
-  It also adds `users.vk_id` and makes `users.yandex_id` optional (on SQLite by rebuilding the table).
+  It also adds `users.vk_id` and `users.google_id`, and makes `users.yandex_id` optional (on SQLite by rebuilding the table).
 
 ### Frontend
 
@@ -284,6 +307,8 @@ frontend/src/
 | GET | `/auth/login-yandex` | Yandex redirect URI: sign in, back to `next` |
 | GET | `/api/auth/vk/login?provider=vk\|ok\|mail&next=/path` | Redirect to VK ID (VK, Odnoklassniki, Mail.ru) |
 | GET | `/auth/login-vk` | VK ID redirect URL: sign in, back to `next` |
+| GET | `/api/auth/google/login?next=/path` | Redirect to Google |
+| GET | `/auth/login-google` | Google redirect URI: sign in, back to `next` |
 | GET | `/api/auth/me` | Signed-in user, or 401 |
 | POST | `/api/auth/logout` | Sign out |
 | GET | `/api/scenarios` | Scenario list |

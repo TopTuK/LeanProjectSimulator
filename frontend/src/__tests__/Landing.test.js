@@ -44,7 +44,7 @@ describe('Landing', () => {
     auth.login = vi.fn()
     const w = await render()
     await w.find('[data-test="login-start"]').trigger('click')
-    for (const p of ['yandex', 'vk', 'ok', 'mail']) {
+    for (const p of ['yandex', 'vk', 'ok', 'mail', 'google']) {
       await w.find(`[data-test="login-${p}"]`).trigger('click')
       expect(auth.login).toHaveBeenLastCalledWith(p, '/control')
     }

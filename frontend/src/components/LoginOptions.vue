@@ -15,6 +15,7 @@ const PROVIDERS = [
   { id: 'vk', color: '#0077ff', mark: 'VK' },
   { id: 'ok', color: '#ee8208', mark: 'OK' },
   { id: 'mail', color: '#005ff9', mark: '@' },
+  { id: 'google', color: '#4285f4', mark: 'G' },
 ]
 
 const card = ref(null)

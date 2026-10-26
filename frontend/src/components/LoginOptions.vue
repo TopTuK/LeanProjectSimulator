@@ -3,19 +3,24 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../stores/auth.js'
 import Icon from './Icon.vue'
+import yandexIcon from '../assets/login/login-icon-yandex.jpg'
+import vkIcon from '../assets/login/login-icon-vk.jpg'
+import okIcon from '../assets/login/login-icon-ok.jpg'
+import mailIcon from '../assets/login/login-icon-mail.jpg'
+import googleIcon from '../assets/login/login-icon-google.jpg'
 
 defineProps({ next: { type: String, default: '/' } })
 const emit = defineEmits(['close'])
 const { t } = useI18n()
 const auth = useAuth()
 
-// each provider keeps a whisper of its brand colour
+// each provider gets its generated brand icon
 const PROVIDERS = [
-  { id: 'yandex', color: '#fc3f1d', mark: 'Я' },
-  { id: 'vk', color: '#0077ff', mark: 'VK' },
-  { id: 'ok', color: '#ee8208', mark: 'OK' },
-  { id: 'mail', color: '#005ff9', mark: '@' },
-  { id: 'google', color: '#4285f4', mark: 'G' },
+  { id: 'yandex', icon: yandexIcon },
+  { id: 'vk', icon: vkIcon },
+  { id: 'ok', icon: okIcon },
+  { id: 'mail', icon: mailIcon },
+  { id: 'google', icon: googleIcon },
 ]
 
 const card = ref(null)
@@ -73,10 +78,9 @@ onBeforeUnmount(() => {
           @click="auth.login(p.id, next)"
         >
           <span
-            class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold"
-            :style="{ background: `color-mix(in srgb, ${p.color} 10%, white)`, color: p.color }"
+            class="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg"
           >
-            {{ p.mark }}
+            <img :src="p.icon" :alt="t(`auth.providers.${p.id}`)" class="h-full w-full object-cover" />
           </span>
           {{ t(`auth.providers.${p.id}`) }}
           <svg viewBox="0 0 20 20" class="ml-auto h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h11M11 5l5 5-5 5" /></svg>

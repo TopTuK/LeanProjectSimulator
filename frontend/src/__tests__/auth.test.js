@@ -50,10 +50,10 @@ describe('auth store', () => {
     expect(assign).toHaveBeenLastCalledWith('/api/auth/google/login?next=%2Fcontrol')
   })
 
-  it('chooseLogin opens the sign-in options on the landing page', () => {
+  it('chooseLogin opens the dedicated sign-in page', () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
     useAuth().chooseLogin('/sim/a/office')
-    expect(assign).toHaveBeenCalledWith('/?login=1&next=%2Fsim%2Fa%2Foffice')
+    expect(assign).toHaveBeenCalledWith('/login?next=%2Fsim%2Fa%2Foffice')
   })
 })

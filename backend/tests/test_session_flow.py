@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from sqlalchemy import select
+
 from app import models as m
 from app.models import utcnow
 
@@ -75,3 +77,41 @@ def test_idempotent_actions(auth_client):
 def test_unknown_session(auth_client):
     client = auth_client
     assert client.get("/api/sessions/nope").status_code == 404
+
+
+def test_list_sessions_with_independent_settings(auth_client):
+    client = auth_client
+    first = client.post("/api/sessions", json={"mode": "demo", "speed": "test"}).json()
+    second = client.post(
+        "/api/sessions",
+        json={"mode": "full", "speed": "fast", "risk": True, "difficulty_cost": "hard"},
+    ).json()
+
+    rows = client.get("/api/sessions").json()
+    ids = [row["id"] for row in rows]
+    assert ids.index(second["id"]) < ids.index(first["id"])
+    by_id = {row["id"]: row for row in rows}
+    assert by_id[first["id"]]["config"]["speed"] == "test"
+    assert by_id[first["id"]]["config"]["risk"] is False
+    assert by_id[second["id"]]["config"]["speed"] == "fast"
+    assert by_id[second["id"]]["config"]["risk"] is True
+    assert by_id[second["id"]]["config"]["difficulty_cost"] == "hard"
+    assert by_id[second["id"]]["scenario"]["title"] == "Webshop Launch"
+    assert by_id[second["id"]]["completion"] == 0
+    assert "activities" not in by_id[second["id"]]
+
+
+def test_delete_running_session_and_dependent_rows(auth_client, db):
+    client = auth_client
+    keep = client.post("/api/sessions", json={}).json()["id"]
+    sid = client.post("/api/sessions", json={"speed": "test"}).json()["id"]
+    client.post(f"/api/sessions/{sid}/clock/start")
+
+    assert client.delete(f"/api/sessions/{sid}").status_code == 204
+    assert client.get(f"/api/sessions/{sid}").status_code == 404
+    assert client.get(f"/api/sessions/{sid}/stream").status_code == 404
+    assert client.get(f"/api/sessions/{keep}").status_code == 200
+    assert sid not in [row["id"] for row in client.get("/api/sessions").json()]
+    assert db.get(m.SimSession, sid) is None
+    for model in (m.Assignment, m.Message, m.SessionDecision, m.Snapshot, m.ActionLog):
+        assert db.scalars(select(model).where(model.session_id == sid)).all() == []

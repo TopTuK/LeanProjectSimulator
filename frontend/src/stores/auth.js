@@ -29,9 +29,8 @@ export const useAuth = defineStore('auth', () => {
     window.location.assign(api.loginUrl(provider, next))
   }
 
-  // the landing page lists the providers and comes back to next
-  function chooseLogin(next = '/') {
-    window.location.assign(`/?login=1&next=${encodeURIComponent(next)}`)
+  function chooseLogin(next = '/simulations') {
+    window.location.assign(`/login?next=${encodeURIComponent(next)}`)
   }
 
   async function logout() {

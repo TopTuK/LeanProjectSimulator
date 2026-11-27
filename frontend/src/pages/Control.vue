@@ -49,7 +49,7 @@ async function go() {
 
 <template>
   <div class="mx-auto max-w-3xl px-6 py-10">
-    <RouterLink to="/" class="text-sm text-slate-500 hover:text-slate-800">← {{ t('control.back') }}</RouterLink>
+    <RouterLink to="/simulations" class="text-sm text-slate-500 hover:text-slate-800">← {{ t('control.back') }}</RouterLink>
     <h1 class="mt-4 text-2xl font-semibold text-slate-900">{{ t('control.title') }}</h1>
     <p class="mt-1 text-sm text-slate-500">{{ t('control.subtitle') }}</p>
 

@@ -1,7 +1,7 @@
 # SimulTrain
 
 A project-management business game modelled on the flow described in [behavior.md](behavior.md):
-landing page → sign in with Yandex, VK, Odnoklassniki, Mail.ru or Google → simulation control → a running project clock,
+landing page → dedicated sign-in with Yandex, VK, Odnoklassniki, Mail.ru or Google → simulation dashboard → simulation control → a running project clock,
 mail, phone calls, decisions, resource management, managed risks, and live Cost / Schedule / Quality / Motivation indexes.
 The original "Webshop Launch" scenario has a one-week demo and a full nine-week game with 40 activities,
 20 core decisions, and 12 optional managed risks. Scenario content and scoring rules are original.
@@ -16,8 +16,9 @@ cp .env.example .env   # fill in the Yandex ID, VK ID and Google apps and SESSIO
 docker compose up --build
 ```
 
-Open http://localhost:8080, sign in and press **Start simulation**. Choose **Demo** for week 1 or **Full**
-for the complete 45-working-day project. A project day takes 2 min at **Test**, 5 min at **Fast**, or 7 min
+Open http://localhost:8080, sign in and press **New simulation**. Choose **Demo** for week 1 or **Full**
+for the complete 45-working-day project. The dashboard keeps any number of independent runs and can permanently
+delete a run after confirmation. A project day takes 2 min at **Test**, 5 min at **Fast**, or 7 min
 at **Normal** speed. Demo therefore takes 10/25/35 min and Full takes 90/225/315 min, excluding pauses.
 
 ## Configuration
@@ -78,9 +79,10 @@ cd frontend && npm test          # Vitest + jsdom
   by `FakeYandex` / `FakeVk` / `FakeGoogle` in [conftest.py](backend/tests/conftest.py); the `login()` helper walks the real redirect
   flow, and the `auth_client` fixture is a signed-in client. Covers clock maths, rules, demo and 45-day full-game flows,
   scenario integrity, deterministic risk outcomes, response effects, a successful managed playthrough,
-  sign-in (state check, open-redirect guard, errors), per-user access and the schema upgrade.
+  sign-in (state check, open-redirect guard, errors), per-user access, multi-session summaries, running-session deletion and the schema upgrade.
 - **Frontend** ([frontend/src/\_\_tests\_\_](frontend/src/__tests__)) stubs `fetch`. Covers the API client,
-  auth and sim stores, router guard, bilingual landing page, mode/risk controls, risk register and final score.
+  auth and sim stores, router guard, bilingual landing and dedicated login pages, the multi-simulation dashboard,
+  confirmed deletion, mode/risk controls, risk register and final score.
 
 ## Production deployment
 
@@ -219,7 +221,7 @@ Formulas are documented at the top of [rules.py](backend/app/engine/rules.py). I
 ### Authentication
 
 Players sign in with Yandex ID, with VK ID, which also covers Odnoklassniki and Mail.ru accounts, or with
-Google. The landing page lists the five options.
+Google. The dedicated `/login` page lists the five options and returns the player to their requested page.
 
 Yandex ID uses the OAuth 2.0 authorization code flow ([auth.py](backend/app/auth.py),
 [routers/auth.py](backend/app/routers/auth.py)):
@@ -295,17 +297,18 @@ frontend/src/
   api.js             fetch wrapper; errors carry .status and the server detail
   stores/auth.js     signed-in user, login redirect, logout
   stores/sim.js      current session state, SSE connection, actions
-  pages/             Landing, Control (settings), Sim (game shell)
+  pages/             Landing, Login, Simulations (dashboard), Control (settings), Sim (game shell)
   views/             Office, Budget, Gantt, Team, Network, Reports, Calendar, Control, Help
   components/        clock button, mail drawer, decision / task / end modals, charts, form controls
   i18n/              en / ru strings and the in-game guide
 ```
 
-- Routes: `/` (public), `/control` and `/sim/:id/:view` (need sign-in). The guard asks `/api/auth/me`
-  once and otherwise sends the browser to `/?login=1&next=<full path>`, where the sign-in options open.
+- Routes: `/` and `/login` (public), `/simulations`, `/control` and `/sim/:id/:view` (need sign-in). The guard asks `/api/auth/me`
+  once and otherwise sends the browser to `/login?next=<full path>`; OAuth errors return to the same dedicated page.
 - The server is the source of truth. Every action returns the full session state, which replaces the
-  store's copy. While the clock runs, the store opens `GET /api/sessions/{id}/stream` (server-sent
-  events, one state per second) and closes it when the clock stops.
+  store's copy. The dashboard loads compact summaries for all owned runs; only the opened simulation
+  keeps live state. While its clock runs, the store opens `GET /api/sessions/{id}/stream` (server-sent
+  events, one state per second) and closes it when the clock stops or the run is deleted.
 - Each write sends a fresh `client_action_id`, so a retried request is not applied twice.
 - A 401 during play (cookie expired, signed out elsewhere) sends the player to sign in and back.
 - The last session id is kept in `localStorage` for "Continue last simulation"; the UI language too.
@@ -324,8 +327,10 @@ frontend/src/
 | GET | `/api/auth/me` | Signed-in user, or 401 |
 | POST | `/api/auth/logout` | Sign out |
 | GET | `/api/scenarios` | Scenario list |
-| POST | `/api/sessions` | Create a session with frozen settings |
+| GET | `/api/sessions` | Current user's session summaries, newest first |
+| POST | `/api/sessions` | Create an independent session with frozen settings |
 | GET | `/api/sessions/{id}` | Full state |
+| DELETE | `/api/sessions/{id}` | Permanently delete a session and all its progress, including while running |
 | GET | `/api/sessions/{id}/stream` | SSE state stream |
 | GET | `/api/sessions/{id}/snapshots` | Index time series for reports |
 | POST | `/api/sessions/{id}/clock/start` · `/pause` | Clock control |

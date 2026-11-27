@@ -23,11 +23,11 @@ describe('router guard', () => {
     expect(auth.login).not.toHaveBeenCalled()
   })
 
-  it('sends anonymous visitors of /control to the sign-in options', async () => {
+  it('sends anonymous visitors of /control to the dedicated sign-in page', async () => {
     const { router, auth } = await setup([401, { detail: 'login required' }])
     await router.push('/control')
-    expect(router.currentRoute.value.path).toBe('/')
-    expect(router.currentRoute.value.query).toEqual({ login: '1', next: '/control' })
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(router.currentRoute.value.query).toEqual({ next: '/control' })
     expect(auth.login).not.toHaveBeenCalled()
   })
 

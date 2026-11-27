@@ -1,36 +1,18 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { lastSessionId } from '../stores/sim.js'
 import { useAuth } from '../stores/auth.js'
 import { QUICK_START } from '../i18n/guide.js'
 import LangSwitch from '../components/LangSwitch.vue'
-import LoginOptions from '../components/LoginOptions.vue'
 import heroImg from '../assets/landing-hero.jpg'
 
 const { t, locale } = useI18n()
-const route = useRoute()
 const auth = useAuth()
 const quick = computed(() => QUICK_START[locale.value] ?? QUICK_START.en)
 const last = lastSessionId()
-const authError = computed(() => route.query.auth_error !== undefined)
 
-// the router guard sends anonymous visitors here with ?login=1&next=/where/they/went
-const loginNext = ref(null)
-watch(
-  () => route.query,
-  (q) => {
-    if (q.login === undefined) return
-    loginNext.value = typeof q.next === 'string' && /^\/(?![/\\])/.test(q.next) ? q.next : '/control'
-  },
-  { immediate: true },
-)
-
-onMounted(async () => {
-  await auth.fetch()
-  if (auth.user) loginNext.value = null
-})
+onMounted(() => auth.fetch())
 </script>
 
 <template>
@@ -50,9 +32,9 @@ onMounted(async () => {
             {{ t('auth.logout') }}
           </button>
         </template>
-        <button v-else-if="auth.loaded" class="btn btn-ghost px-3 py-1.5 text-sm" data-test="login" @click="loginNext = '/'">
+        <RouterLink v-else-if="auth.loaded" :to="{ path: '/login', query: { next: '/' } }" class="btn btn-ghost px-3 py-1.5 text-sm" data-test="login">
           {{ t('auth.login') }}
-        </button>
+        </RouterLink>
         <LangSwitch />
       </div>
     </header>
@@ -64,11 +46,9 @@ onMounted(async () => {
           <h1 class="max-w-2xl text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">{{ t('landing.title') }}</h1>
           <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">{{ t('landing.lead') }}</p>
 
-          <p v-if="authError" class="mt-6 text-sm text-red-600" data-test="auth-error">{{ t('auth.error') }}</p>
-
           <div class="mt-10 flex flex-wrap items-center gap-3">
             <template v-if="auth.user">
-              <RouterLink to="/control" class="btn btn-primary px-6 py-3 text-base" data-test="start">
+              <RouterLink to="/simulations" class="btn btn-primary px-6 py-3 text-base" data-test="start">
                 {{ t('landing.start') }}
                 <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M7 4l7 6-7 6V4z" /></svg>
               </RouterLink>
@@ -76,10 +56,10 @@ onMounted(async () => {
                 {{ t('landing.resume') }}
               </RouterLink>
             </template>
-            <button v-else class="btn btn-primary px-6 py-3 text-base" :disabled="!auth.loaded" data-test="login-start" @click="loginNext = '/control'">
+            <RouterLink v-else :to="{ path: '/login', query: { next: '/simulations' } }" class="btn btn-primary px-6 py-3 text-base" data-test="login-start">
               {{ t('auth.loginToStart') }}
               <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M7 4l7 6-7 6V4z" /></svg>
-            </button>
+            </RouterLink>
           </div>
         </div>
 
@@ -95,7 +75,5 @@ onMounted(async () => {
       </ol>
       <p class="mt-6 text-sm text-slate-400">{{ t('landing.note') }}</p>
     </main>
-
-    <LoginOptions v-if="loginNext && !auth.user" :next="loginNext" @close="loginNext = null" />
   </div>
 </template>

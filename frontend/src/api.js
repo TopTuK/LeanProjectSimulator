@@ -27,8 +27,10 @@ export const api = {
       ? `/api/auth/${provider}/login?next=${encodeURIComponent(next)}`
       : `/api/auth/vk/login?provider=${encodeURIComponent(provider)}&next=${encodeURIComponent(next)}`,
   scenarios: () => request('GET', '/scenarios'),
+  list: () => request('GET', '/sessions'),
   create: (cfg) => request('POST', '/sessions', cfg),
   get: (id) => request('GET', `/sessions/${id}`),
+  remove: (id) => request('DELETE', `/sessions/${id}`),
   snapshots: (id) => request('GET', `/sessions/${id}/snapshots`),
   start: (id) => request('POST', `/sessions/${id}/clock/start`, { client_action_id: actionId() }),
   pause: (id) => request('POST', `/sessions/${id}/clock/pause`, { client_action_id: actionId() }),

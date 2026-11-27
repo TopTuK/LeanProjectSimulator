@@ -17,6 +17,16 @@ describe('api', () => {
     expect(JSON.parse(opts.body)).toEqual({ speed: 'test' })
   })
 
+  it('lists and deletes sessions', async () => {
+    const fetch = mockFetch({
+      'GET /api/sessions': [200, [{ id: 's1' }]],
+      'DELETE /api/sessions/s1': [204, null],
+    })
+    expect(await api.list()).toEqual([{ id: 's1' }])
+    expect(await api.remove('s1')).toBeNull()
+    expect(fetch).toHaveBeenLastCalledWith('/api/sessions/s1', expect.objectContaining({ method: 'DELETE' }))
+  })
+
   it('errors carry status and server detail', async () => {
     mockFetch({ 'GET /api/auth/me': [401, { detail: 'login required' }] })
     await expect(api.me()).rejects.toMatchObject({ status: 401, message: 'login required' })

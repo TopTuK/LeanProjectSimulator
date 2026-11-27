@@ -16,7 +16,11 @@ describe('Control page', () => {
     mockFetch({ 'GET /api/scenarios': [200, [{ code: 'webshop', title: { en: 'Webshop' } }]] })
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: '/', component: { template: '<div />' } }, { path: '/control', component: Control }],
+      routes: [
+        { path: '/', component: { template: '<div />' } },
+        { path: '/control', component: Control },
+        { path: '/simulations', component: { template: '<div />' } },
+      ],
     })
     await router.push('/control')
     await router.isReady()

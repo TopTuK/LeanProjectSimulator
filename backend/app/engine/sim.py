@@ -5,7 +5,7 @@ import math
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -109,6 +109,28 @@ def create_session(db: Session, cfg: dict, user_id: int | None = None) -> m.SimS
     log_action(db, s, "create", cfg, None)
     db.commit()
     return s
+
+
+def list_sessions(db: Session, user_id: int) -> list[dict]:
+    rows = db.scalars(
+        select(m.SimSession)
+        .where(m.SimSession.user_id == user_id)
+        .order_by(m.SimSession.created_at.desc(), m.SimSession.id.desc())
+        .with_for_update()
+    ).all()
+    summaries = []
+    for s in rows:
+        advance(db, s)
+        summaries.append(session_summary(db, s))
+    db.commit()
+    return summaries
+
+
+def delete_session(db: Session, s: m.SimSession) -> None:
+    for model in (m.Assignment, m.Message, m.SessionDecision, m.Snapshot, m.ActionLog):
+        db.execute(delete(model).where(model.session_id == s.id))
+    db.delete(s)
+    db.commit()
 
 
 def advance(db: Session, s: m.SimSession, now: datetime | None = None) -> bool:
@@ -319,6 +341,32 @@ def game_summary(scn: ScenarioData, state: dict, decisions: list[m.SessionDecisi
     }
 
 
+def clock_view(s: m.SimSession, scn: ScenarioData) -> dict:
+    ended = s.status == "ended"
+    return {
+        "minutes": s.minutes,
+        "end_minutes": end_minutes(scn, s.config),
+        "factor": factor(s.config.get("speed", "demo")),
+        "work_days": work_days(s.minutes),
+        **describe(s.minutes, at_end=ended),
+    }
+
+
+def session_summary(db: Session, s: m.SimSession) -> dict:
+    scn = scenario_for(db, s)
+    done = sum(rules.is_done(s.state, n) for n in scn.activities)
+    return {
+        "id": s.id,
+        "status": s.status,
+        "locale": s.locale,
+        "config": s.config,
+        "created_at": s.created_at.isoformat(),
+        "clock": clock_view(s, scn),
+        "completion": round(100 * done / len(scn.activities)),
+        "scenario": {"code": scn.code, "title": tr(scn.title, s.locale)},
+    }
+
+
 def build_state(db: Session, s: m.SimSession) -> dict:
     scn = scenario_for(db, s)
     loc = s.locale
@@ -435,17 +483,13 @@ def build_state(db: Session, s: m.SimSession) -> dict:
         for e in scn.events if e["channel"] == "meeting"
     ]
 
-    ended = s.status == "ended"
     indexes = rules.indexes(state, mon)
     return {
         "id": s.id,
         "status": s.status,
         "locale": loc,
         "config": s.config,
-        "clock": {
-            "minutes": s.minutes, "end_minutes": end_minutes(scn, s.config), "factor": factor(s.config.get("speed", "demo")),
-            "work_days": work_days(s.minutes), **describe(s.minutes, at_end=ended),
-        },
+        "clock": clock_view(s, scn),
         "indexes": indexes,
         "game": game_summary(scn, state, decision_rows, risk_register, indexes),
         "money": {k: v for k, v in mon.items() if k != "per_activity"},

@@ -1,4 +1,4 @@
-from app.engine.clock import WEEK_MIN, describe, factor, is_work_hour, to_minute, work_days
+from app.engine.clock import DAY_MIN, WEEK_MIN, describe, factor, is_work_hour, to_minute, work_days
 from app.engine.schedule import cpm
 
 
@@ -24,10 +24,13 @@ def test_work_hours_and_days():
     assert work_days(WEEK_MIN) == 5
 
 
-def test_speeds_are_3_7_15_minutes_per_week():
-    assert abs(WEEK_MIN / factor("test") - 180) < 1e-9
-    assert abs(WEEK_MIN / factor("fast") - 420) < 1e-9
-    assert abs(WEEK_MIN / factor("demo") - 900) < 1e-9
+def test_speeds_are_2_5_7_minutes_per_day():
+    assert abs(DAY_MIN / factor("test") - 120) < 1e-9
+    assert abs(DAY_MIN / factor("fast") - 300) < 1e-9
+    assert abs(DAY_MIN / factor("demo") - 420) < 1e-9
+    assert abs(WEEK_MIN / factor("test") - 600) < 1e-9
+    assert abs(WEEK_MIN / factor("fast") - 1500) < 1e-9
+    assert abs(WEEK_MIN / factor("demo") - 2100) < 1e-9
 
 
 def test_cpm_critical_path():

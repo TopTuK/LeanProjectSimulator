@@ -73,7 +73,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="SimulTrain demo API", lifespan=lifespan)
+app = FastAPI(title="SimulTrain API", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware, secret_key=SESSION_SECRET, session_cookie="simultrain_session",
     same_site="lax", https_only=COOKIE_SECURE, max_age=30 * 24 * 3600,

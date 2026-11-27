@@ -16,6 +16,7 @@ import Budget from '../views/Budget.vue'
 import Gantt from '../views/Gantt.vue'
 import Team from '../views/Team.vue'
 import Network from '../views/Network.vue'
+import Risks from '../views/Risks.vue'
 import Reports from '../views/Reports.vue'
 import Calendar from '../views/Calendar.vue'
 import ControlView from '../views/ControlView.vue'
@@ -26,8 +27,9 @@ const { t } = useI18n()
 const { clockLabel, hhmm } = useFormat()
 const sim = useSim()
 
-const COMPONENTS = { office: Office, budget: Budget, gantt: Gantt, team: Team, network: Network, reports: Reports, calendar: Calendar, control: ControlView, help: Help }
-const current = computed(() => COMPONENTS[props.view] ?? Office)
+const COMPONENTS = { office: Office, budget: Budget, gantt: Gantt, team: Team, network: Network, risks: Risks, reports: Reports, calendar: Calendar, control: ControlView, help: Help }
+const current = computed(() => props.view === 'risks' && !sim.state?.config.risk ? Office : (COMPONENTS[props.view] ?? Office))
+const visibleViews = computed(() => VIEWS.filter((v) => v !== 'risks' || sim.state?.config.risk))
 const notFound = ref(false)
 
 watch(
@@ -103,7 +105,7 @@ const s = computed(() => sim.state)
       </div>
       <nav class="flex-1 space-y-0.5 overflow-y-auto p-2">
         <RouterLink
-          v-for="v in VIEWS"
+          v-for="v in visibleViews"
           :key="v"
           :to="`/sim/${s.id}/${v}`"
           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition"
@@ -125,7 +127,7 @@ const s = computed(() => sim.state)
         <div class="min-w-0 flex-1">
           <h1 class="truncate text-base font-semibold text-slate-900">{{ t(`nav.${view}`) }}</h1>
           <p class="truncate text-xs text-slate-500">
-            {{ s.scenario.title }} · <span class="uppercase">{{ s.locale }}</span> · {{ t('badgeDemo') }}
+            {{ s.scenario.title }} · <span class="uppercase">{{ s.locale }}</span> · {{ t(`mode.${s.config.mode || 'demo'}`) }}
           </p>
         </div>
         <button class="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" :class="{ 'text-accent blink': unreadPhone }" :title="t('mail.phone')" @click="openMail()">

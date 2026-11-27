@@ -4,7 +4,7 @@ import Control from './pages/Control.vue'
 import Sim from './pages/Sim.vue'
 import { useAuth } from './stores/auth.js'
 
-export const VIEWS = ['office', 'help', 'budget', 'gantt', 'team', 'network', 'reports', 'calendar', 'control']
+export const VIEWS = ['office', 'help', 'budget', 'gantt', 'team', 'network', 'risks', 'reports', 'calendar', 'control']
 
 export const routes = [
   { path: '/', component: Landing },

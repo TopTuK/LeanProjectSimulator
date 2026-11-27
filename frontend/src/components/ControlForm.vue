@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Segmented from './Segmented.vue'
 import { setLocale } from '../i18n/index.js'
@@ -9,12 +9,14 @@ const props = defineProps({
   readonly: Boolean,
 })
 const cfg = defineModel({ type: Object, required: true })
+if (!cfg.value.mode) cfg.value.mode = 'demo'
 const { t, locale } = useI18n()
 
 const yesNo = computed(() => [
   { value: true, label: t('yes') },
   { value: false, label: t('no') },
 ])
+const modes = computed(() => ['demo', 'full'].map((v) => ({ value: v, label: t(`mode.${v}`) })))
 const levels = computed(() => ['easy', 'standard', 'hard'].map((v) => ({ value: v, label: t(`level.${v}`) })))
 const speeds = computed(() => ['test', 'fast', 'demo'].map((v) => ({ value: v, label: t(`speed.${v}`) })))
 const scenarioOptions = computed(() =>
@@ -26,6 +28,11 @@ const lang = computed({
     cfg.value.locale = v
     setLocale(v)
   },
+})
+const riskDisabled = computed(() => props.readonly || cfg.value.mode !== 'full')
+watch(() => cfg.value.mode, (mode, previous) => {
+  if (mode === 'demo') cfg.value.risk = false
+  else if (previous === 'demo' && !props.readonly) cfg.value.risk = true
 })
 </script>
 
@@ -40,6 +47,10 @@ const lang = computed({
       <Segmented v-model="cfg.scenario" :disabled="readonly" :options="scenarioOptions" />
     </div>
     <div class="grid gap-2 py-4 sm:grid-cols-[12rem_1fr] sm:items-center">
+      <span class="text-sm text-slate-600">{{ t('control.mode') }}</span>
+      <Segmented v-model="cfg.mode" data-test="mode" :disabled="readonly" :options="modes" />
+    </div>
+    <div class="grid gap-2 py-4 sm:grid-cols-[12rem_1fr] sm:items-center">
       <span class="text-sm text-slate-600">{{ t('control.speed') }}</span>
       <Segmented v-model="cfg.speed" :disabled="readonly" :options="speeds" />
     </div>
@@ -50,20 +61,20 @@ const lang = computed({
     <div class="grid gap-2 py-4 sm:grid-cols-[12rem_1fr] sm:items-center">
       <span class="text-sm text-slate-600">{{ t('control.risk') }}</span>
       <div class="flex items-center gap-3">
-        <Segmented v-model="cfg.risk" disabled :options="yesNo" />
-        <span class="text-xs text-slate-400">{{ t('control.notInDemo') }}</span>
+        <Segmented v-model="cfg.risk" data-test="risk" :disabled="riskDisabled" :options="yesNo" />
+        <span v-if="cfg.mode === 'demo'" class="text-xs text-slate-400">{{ t('control.fullOnly') }}</span>
       </div>
     </div>
     <div class="grid gap-2 py-4 sm:grid-cols-[12rem_1fr] sm:items-center">
       <span class="text-sm text-slate-600">{{ t('control.raci') }}</span>
       <div class="flex items-center gap-3">
         <Segmented v-model="cfg.raci" disabled :options="yesNo" />
-        <span class="text-xs text-slate-400">{{ t('control.notInDemo') }}</span>
+        <span class="text-xs text-slate-400">{{ t('control.unavailable') }}</span>
       </div>
     </div>
     <div v-for="d in ['cost', 'schedule', 'quality', 'motivation', 'risk']" :key="d" class="grid gap-2 py-4 sm:grid-cols-[12rem_1fr] sm:items-center">
       <span class="text-sm text-slate-600">{{ t('control.difficulty') }} · {{ t(`dim.${d}`) }}</span>
-      <Segmented v-model="cfg[`difficulty_${d}`]" :disabled="readonly || d === 'risk'" :options="levels" />
+      <Segmented v-model="cfg[`difficulty_${d}`]" :disabled="readonly || (d === 'risk' && riskDisabled)" :options="levels" />
     </div>
   </div>
 </template>

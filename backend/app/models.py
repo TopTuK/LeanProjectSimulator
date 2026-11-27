@@ -158,6 +158,23 @@ class DecisionOption(Base):
     learning_point: Mapped[dict | None] = mapped_column(JsonType, nullable=True)
 
 
+class ScenarioRisk(Base):
+    __tablename__ = "scenario_risks"
+    __table_args__ = (UniqueConstraint("scenario_code", "key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scenario_code: Mapped[str] = mapped_column(ForeignKey("scenarios.code", ondelete="CASCADE"))
+    key: Mapped[str] = mapped_column(String(32))
+    name: Mapped[dict] = mapped_column(JsonType)
+    description: Mapped[dict] = mapped_column(JsonType)
+    category: Mapped[dict] = mapped_column(JsonType)
+    probability: Mapped[float] = mapped_column(Float)
+    impact: Mapped[dict] = mapped_column(JsonType, default=dict)
+    identify_event_key: Mapped[str] = mapped_column(String(32))
+    occurrence_event_key: Mapped[str] = mapped_column(String(32))
+    decision_key: Mapped[str] = mapped_column(String(32))
+
+
 # ---------------------------------------------------------------- users
 
 

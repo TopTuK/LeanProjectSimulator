@@ -33,7 +33,7 @@ const elapsed = computed(() => (100 * s.value.clock.minutes) / s.value.clock.end
     <div class="flex flex-wrap items-center gap-4 rounded-xl border border-blue-100 bg-accent-soft px-5 py-4">
       <div class="min-w-0 flex-1">
         <p class="text-lg font-semibold text-slate-900 tabular-nums">{{ clockLabel(s.clock) }}</p>
-        <p class="text-sm text-slate-600">{{ t('office.demoBanner') }}</p>
+        <p class="text-sm text-slate-600">{{ t(`office.${s.config.mode || 'demo'}Banner`) }}</p>
         <div class="mt-2 h-1 max-w-md overflow-hidden rounded-full bg-white">
           <div class="h-full bg-accent transition-all" :style="{ width: `${elapsed}%` }" />
         </div>

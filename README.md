@@ -1,9 +1,10 @@
-# SimulTrain Demo
+# SimulTrain
 
 A project-management business game modelled on the flow described in [behavior.md](behavior.md):
-landing page → sign in with Yandex, VK, Odnoklassniki, Mail.ru or Google → simulation control → a one-week playable demo with a running clock,
-mail, phone calls, decisions, and live Cost / Schedule / Quality / Motivation indexes.
-Scenario content ("Webshop Launch") and scoring rules are original.
+landing page → sign in with Yandex, VK, Odnoklassniki, Mail.ru or Google → simulation control → a running project clock,
+mail, phone calls, decisions, resource management, managed risks, and live Cost / Schedule / Quality / Motivation indexes.
+The original "Webshop Launch" scenario has a one-week demo and a full nine-week game with 40 activities,
+20 core decisions, and 12 optional managed risks. Scenario content and scoring rules are original.
 
 Stack: Vue 3 + Pinia + Tailwind CSS v4 (Vite), FastAPI + SQLAlchemy 2, PostgreSQL 16, nginx.
 UI and scenario in English and Russian. Sign-in with Yandex ID, VK ID (VK, Odnoklassniki, Mail.ru) or Google.
@@ -15,8 +16,9 @@ cp .env.example .env   # fill in the Yandex ID, VK ID and Google apps and SESSIO
 docker compose up --build
 ```
 
-Open http://localhost:8080, sign in and press **Start simulation**. Pick the **Test** or
-**Fast** speed to play a week in 3 or 7 min; **Demo** is 15 min per week.
+Open http://localhost:8080, sign in and press **Start simulation**. Choose **Demo** for week 1 or **Full**
+for the complete 45-working-day project. A project day takes 2 min at **Test**, 5 min at **Fast**, or 7 min
+at **Normal** speed. Demo therefore takes 10/25/35 min and Full takes 90/225/315 min, excluding pauses.
 
 ## Configuration
 
@@ -74,10 +76,11 @@ cd frontend && npm test          # Vitest + jsdom
 
 - **Backend** ([backend/tests](backend/tests)) runs against a throwaway SQLite database. Yandex, VK ID and Google are replaced
   by `FakeYandex` / `FakeVk` / `FakeGoogle` in [conftest.py](backend/tests/conftest.py); the `login()` helper walks the real redirect
-  flow, and the `auth_client` fixture is a signed-in client. Covers clock maths, rules, a full demo week,
+  flow, and the `auth_client` fixture is a signed-in client. Covers clock maths, rules, demo and 45-day full-game flows,
+  scenario integrity, deterministic risk outcomes, response effects, a successful managed playthrough,
   sign-in (state check, open-redirect guard, errors), per-user access and the schema upgrade.
 - **Frontend** ([frontend/src/\_\_tests\_\_](frontend/src/__tests__)) stubs `fetch`. Covers the API client,
-  auth and sim stores, the router guard and the landing page in both languages.
+  auth and sim stores, router guard, bilingual landing page, mode/risk controls, risk register and final score.
 
 ## Production deployment
 
@@ -129,15 +132,16 @@ backend/app/
     scenario.py      cached in-memory view of a scenario
     rules.py         pure functions: work, cost, EV/PV, indexes, effects
     leveling.py      resource-leveling proposal
-    sim.py           session lifecycle and the JSON view
+    risks.py         deterministic risk probabilities, responses and impacts
+    sim.py           session lifecycle, score and the JSON view
   seed/              built-in scenario content
 ```
 
 Routers parse input, resolve the user, lock the session row and call `engine.sim`. The engine raises
 `SimError(status, message)`, which [main.py](backend/app/main.py) turns into `{"detail": ...}` responses.
 [rules.py](backend/app/engine/rules.py), [schedule.py](backend/app/engine/schedule.py),
-[clock.py](backend/app/engine/clock.py) and [leveling.py](backend/app/engine/leveling.py) are pure
-functions over plain data and are unit-tested without a database.
+[clock.py](backend/app/engine/clock.py), [leveling.py](backend/app/engine/leveling.py) and
+[risks.py](backend/app/engine/risks.py) contain the core game calculations and are unit-tested.
 
 ### The clock
 
@@ -145,17 +149,18 @@ The server owns time. A session stores `minutes` (project minutes since Monday 8
 `status` (`ready | running | paused | ended`) and `last_tick_at`.
 
 - Days run 8:00–19:00 on the clock (660 project minutes), people work 9:00–17:00, weekends are skipped.
-- Speed is real seconds per project week: `test` 180, `fast` 420, `demo` 900.
+- Speed is real seconds per project day: `test` 120, `fast` 300, `demo` 420. A five-day week therefore takes 600, 1500, or 2100 seconds.
+- Frozen `config.mode` selects the endpoint: week 1 for `demo` or the scenario's day 45 for `full`.
 - Nothing runs in the background. Every request for a running session calls `sim.advance`, which moves
   the clock by `elapsed real seconds × speed factor` and replays each completed project hour in order:
 
 ```
 for each hour boundary passed:
     if work hour: rules.work_hour()     # progress, cost, overload penalties
-    deliver due events                  # mail / phone / meetings, event effects, open decisions
+    deliver due events                  # mail / phone / meetings, effects, decisions, risk triggers
     auto-resolve decisions past deadline with their default option
     write a snapshot                    # indexes, AC/EV/PV, hours
-at the end of week 1: force-resolve open decisions, status = ended
+at the selected endpoint: force-resolve open decisions, status = ended
 ```
 
 Because every hour is replayed, the result does not depend on how often the client polls.
@@ -182,18 +187,22 @@ Settings are frozen at creation: `config` is never changed afterwards.
 ### Scenario content
 
 Scenario tables (`scenarios`, `activities`, `dependencies`, `resources`, `resource_weeks`,
-`default_assignments`, `scenario_events`, `decisions`, `decision_options`) hold authored content with
-texts as `{"en": ..., "ru": ...}`.
+`default_assignments`, `scenario_events`, `decisions`, `decision_options`, `scenario_risks`) hold authored
+content with texts as `{"en": ..., "ru": ...}`.
 
 - The built-in "Webshop Launch" scenario lives in Python in [seed/webshop.py](backend/app/seed/webshop.py).
   [seed/\_\_init\_\_.py](backend/app/seed/__init__.py) rewrites it on every start, so content edits reach
   existing databases. Sessions refer to activities and people by number, so replacing rows is safe.
 - [scenario.py](backend/app/engine/scenario.py) loads a scenario once into dataclasses, runs CPM to get
-  early/late dates, slack and the critical path, and caches it per process.
+  early/late dates, slack and the critical path, and caches it per process. Its full critical path ends on day 45.
 - An event has a time, a channel (`mail`, `phone`, `meeting`), optional effects and an optional decision.
   A decision has options with effects, feedback, a learning point, a default and a deadline in project hours.
+- Risk definitions link an identification event, a response decision, and a later trigger-review event.
+  Response options can spend money and specify probability/impact multipliers. Outcomes use a stable SHA-256
+  draw from session id and risk key, so reloading or changing poll frequency cannot reroll a risk.
+  Risks are available only in full sessions with `risk: true`; demo configs always disable them.
 
-### Rules
+### Rules and scoring
 
 Formulas are documented at the top of [rules.py](backend/app/engine/rules.py). In short:
 
@@ -203,6 +212,9 @@ Formulas are documented at the top of [rules.py](backend/app/engine/rules.py). I
 - Over-allocated people cost motivation and quality every work hour.
 - Schedule index = SPI = EV / PV. Cost index = budget at completion / estimate at completion.
 - Harmful decision effects are multiplied by the matching difficulty (easy 0.7, standard 1.0, hard 1.3).
+  Risk difficulty additionally scales occurrence probability; the selected response scales probability and impact.
+- The final 0–100 score is the mean of the four indexes capped at 100. Gold starts at 90, Silver at 75,
+  and Bronze at 60. Badges recognise budget, schedule, quality, motivation, and timely risk management.
 
 ### Authentication
 
@@ -326,7 +338,7 @@ All `/api/sessions` calls need a signed-in user (401 otherwise); another user's 
 Write calls accept an optional `client_action_id`; a repeated id is ignored. Errors are
 `{"detail": "..."}` with 400 / 404 / 409 / 422.
 
-## Not in this demo
+## Outside this version
 
-Risk register, RACI matrix, weeks 2–12, periods, licenses and the trainer desk. The control page shows
-Risk/RACI as disabled.
+The demo intentionally stops after week 1. In both modes, RACI matrix, multi-period play, licenses and
+the trainer desk are not implemented; RACI remains disabled on the control page.

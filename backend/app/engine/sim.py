@@ -10,15 +10,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app import models as m
-from app.engine import rules
+from app.engine import risks, rules
 from app.engine.clock import (
-    DEMO_WEEKS, WEEK_MIN, describe, factor, is_work_hour, to_minute, week_of_hour, work_days,
+    DAY_MIN, DEMO_WEEKS, WEEK_MIN, describe, factor, is_work_hour, to_minute, week_of_hour, work_days,
 )
 from app.engine.leveling import level
 from app.engine.scenario import ScenarioData, get_scenario
 from app.models import utcnow
 
-END_MINUTES = DEMO_WEEKS * WEEK_MIN
+
+def end_minutes(scn: ScenarioData, cfg: dict) -> float:
+    if cfg.get("mode", "demo") == "demo":
+        return float(DEMO_WEEKS * WEEK_MIN)
+    return float(scn.total_days * DAY_MIN)
 
 
 class SimError(Exception):
@@ -85,6 +89,9 @@ def create_session(db: Session, cfg: dict, user_id: int | None = None) -> m.SimS
     scn = get_scenario(db, cfg["scenario"])
     if scn is None:
         raise SimError(400, "unknown scenario")
+    cfg = dict(cfg)
+    if cfg.get("mode", "demo") == "demo":
+        cfg["risk"] = False
     s = m.SimSession(
         id=str(uuid.uuid4()), user_id=user_id, scenario_code=scn.code, locale=cfg["locale"], config=cfg,
         status="ready", minutes=0.0, state=rules.initial_state(scn),
@@ -114,11 +121,12 @@ def advance(db: Session, s: m.SimSession, now: datetime | None = None) -> bool:
         last = last.replace(tzinfo=now.tzinfo)
     elapsed = max((now - last).total_seconds(), 0.0)
     s.last_tick_at = now
-    target = min(s.minutes + elapsed * factor(s.config.get("speed", "demo")), END_MINUTES)
+    scn = scenario_for(db, s)
+    end = end_minutes(scn, s.config)
+    target = min(s.minutes + elapsed * factor(s.config.get("speed", "demo")), end)
     if target <= s.minutes:
         return False
 
-    scn = scenario_for(db, s)
     state = copy.deepcopy(s.state)
     assignments = assignments_of(db, s)
     while True:
@@ -136,8 +144,8 @@ def advance(db: Session, s: m.SimSession, now: datetime | None = None) -> bool:
     _deliver(db, s, scn, state)
     _auto_resolve(db, s, scn, state)
 
-    if s.minutes >= END_MINUTES - 1e-9:
-        s.minutes = float(END_MINUTES)
+    if s.minutes >= end - 1e-9:
+        s.minutes = end
         _auto_resolve(db, s, scn, state, force=True)
         s.status = "ended"
         log_action(db, s, "end", {}, None)
@@ -231,6 +239,9 @@ def _deliver(db: Session, s: m.SimSession, scn: ScenarioData, state: dict) -> No
     for ev in scn.events:
         if ev["minute"] > s.minutes + 1e-9:
             break
+        risk_link = scn.risk_events.get(ev["key"])
+        if risk_link and (s.config.get("mode", "demo") == "demo" or not s.config.get("risk")):
+            continue
         if ev["key"] in state["delivered"]:
             continue
         state["delivered"].append(ev["key"])
@@ -244,6 +255,17 @@ def _deliver(db: Session, s: m.SimSession, scn: ScenarioData, state: dict) -> No
                 session_id=s.id, decision_key=dec["key"], event_key=ev["key"], opened_minute=ev["minute"],
                 deadline_minute=ev["minute"] + dec["deadline_hours"] * 60,
             ))
+        if risk_link and risk_link[1] == "occur":
+            risk = risk_link[0]
+            sd = db.scalar(select(m.SessionDecision).where(
+                m.SessionDecision.session_id == s.id, m.SessionDecision.decision_key == risk.decision,
+            ))
+            if sd.option_key is None:
+                _resolve(db, s, scn, state, sd, scn.decisions[risk.decision]["default"], "auto")
+            option = scn.decisions[risk.decision]["options"][sd.option_key]
+            state.setdefault("risk_outcomes", {})[risk.key] = risks.occur(
+                scn, state, risk, option, s.config, s.id, ev["minute"],
+            )
     db.flush()
 
 
@@ -275,6 +297,26 @@ def _snapshot(db: Session, s: m.SimSession, scn: ScenarioData, state: dict, assi
 
 
 # ---------------------------------------------------------------- view
+
+
+def game_summary(scn: ScenarioData, state: dict, decisions: list[m.SessionDecision], risk_register: list[dict], indexes: dict) -> dict:
+    score = round(sum(max(0, min(100, indexes[k])) for k in ("cost", "schedule", "quality", "motivation")) / 4)
+    grade = "gold" if score >= 90 else "silver" if score >= 75 else "bronze" if score >= 60 else "improve"
+    done = sum(rules.is_done(state, n) for n in scn.activities)
+    badges = [k for k in ("cost", "schedule", "quality", "motivation") if indexes[k] >= 97]
+    risk_keys = {r.decision for r in scn.risks.values()}
+    risk_decisions = [d for d in decisions if d.decision_key in risk_keys]
+    if risk_decisions and all(d.option_key and d.resolved_by == "team" for d in risk_decisions):
+        badges.append("risk")
+    return {
+        "score": score, "grade": grade, "badges": badges,
+        "completion": round(100 * done / len(scn.activities)),
+        "decision_count": len(decisions),
+        "auto_decisions": sum(d.resolved_by == "auto" for d in decisions),
+        "risk_count": len(risk_register),
+        "risks_mitigated": sum(r["response_key"] in ("b", "c") for r in risk_register),
+        "risks_occurred": sum(r["status"] == "occurred" for r in risk_register),
+    }
 
 
 def build_state(db: Session, s: m.SimSession) -> dict:
@@ -364,6 +406,28 @@ def build_state(db: Session, s: m.SimSession) -> dict:
             "effects": chosen["effects"] if chosen else None,
         })
 
+    decision_by_key = {d.decision_key: d for d in decision_rows}
+    risk_register = []
+    if s.config.get("risk"):
+        for risk in scn.risks.values():
+            sd = decision_by_key.get(risk.decision)
+            if sd is None:
+                continue
+            dec = scn.decisions[risk.decision]
+            chosen = dec["options"].get(sd.option_key) if sd.option_key else None
+            outcome = state.get("risk_outcomes", {}).get(risk.key)
+            risk_register.append({
+                "key": risk.key, "name": tr(risk.name, loc), "description": tr(risk.description, loc),
+                "category": tr(risk.category, loc), "decision_id": sd.id,
+                "status": ("occurred" if outcome["occurred"] else "avoided") if outcome else
+                          ("responded" if chosen else "open"),
+                "response_key": sd.option_key, "response_label": tr(chosen["label"], loc) if chosen else None,
+                "response_effects": chosen["effects"] if chosen else None,
+                "resolved_by": sd.resolved_by, "deadline": describe(sd.deadline_minute),
+                "probability": round(100 * risks.probability(risk, chosen, s.config), 1),
+                "outcome": outcome,
+            })
+
     calendar = [
         {"key": e["key"], "week": e["week"], "weekday": e["weekday"], "hour": e["hour"],
          "duration": e["duration"], "channel": e["channel"], "title": tr(e["subject"], loc),
@@ -372,16 +436,18 @@ def build_state(db: Session, s: m.SimSession) -> dict:
     ]
 
     ended = s.status == "ended"
+    indexes = rules.indexes(state, mon)
     return {
         "id": s.id,
         "status": s.status,
         "locale": loc,
         "config": s.config,
         "clock": {
-            "minutes": s.minutes, "end_minutes": END_MINUTES, "factor": factor(s.config.get("speed", "demo")),
+            "minutes": s.minutes, "end_minutes": end_minutes(scn, s.config), "factor": factor(s.config.get("speed", "demo")),
             "work_days": work_days(s.minutes), **describe(s.minutes, at_end=ended),
         },
-        "indexes": rules.indexes(state, mon),
+        "indexes": indexes,
+        "game": game_summary(scn, state, decision_rows, risk_register, indexes),
         "money": {k: v for k, v in mon.items() if k != "per_activity"},
         "scenario": {
             "code": scn.code, "title": tr(scn.title, loc), "description": tr(scn.description, loc),
@@ -393,6 +459,7 @@ def build_state(db: Session, s: m.SimSession) -> dict:
         "messages": messages,
         "decisions": decisions,
         "learning_points": learning,
+        "risks": risk_register,
         "calendar": calendar,
     }
 

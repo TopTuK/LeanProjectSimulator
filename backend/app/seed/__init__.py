@@ -7,7 +7,7 @@ from app.seed import webshop
 
 
 CONTENT_TABLES = [
-    m.DefaultAssignment, m.Dependency, m.Activity, m.ResourceWeek, m.Resource, m.ScenarioEvent,
+    m.DefaultAssignment, m.Dependency, m.Activity, m.ResourceWeek, m.Resource, m.ScenarioEvent, m.ScenarioRisk,
 ]
 
 
@@ -58,7 +58,10 @@ def seed(db: Session) -> None:
             db.add(m.ResourceWeek(scenario_code=code, resource_no=no, week=w, state=special.get(w, "payroll")))
 
     for d in s.DECISIONS:
-        dec = m.Decision(scenario_code=code, key=d["key"], prompt=d["prompt"], default_option=d["default_option"])
+        dec = m.Decision(
+            scenario_code=code, key=d["key"], prompt=d["prompt"], default_option=d["default_option"],
+            deadline_hours=d.get("deadline_hours", 6),
+        )
         dec.options = [m.DecisionOption(**o) for o in d["options"]]
         db.add(dec)
 
@@ -68,4 +71,6 @@ def seed(db: Session) -> None:
             channel=channel, sender=sender, subject=subject, body=body, effects=effects,
             decision_key=decision,
         ))
+    for risk in s.RISKS:
+        db.add(m.ScenarioRisk(scenario_code=code, **risk))
     db.commit()

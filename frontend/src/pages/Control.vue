@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '../api.js'
@@ -14,6 +14,7 @@ const scenarios = ref([])
 const cfg = ref({
   locale: locale.value,
   scenario: 'webshop',
+  mode: 'demo',
   speed: 'demo',
   already_planned: true,
   risk: false,
@@ -23,6 +24,13 @@ const cfg = ref({
   difficulty_quality: 'standard',
   difficulty_motivation: 'standard',
   difficulty_risk: 'standard',
+})
+const minutes = computed(() => {
+  const durations = {
+    demo: { test: 10, fast: 25, demo: 35 },
+    full: { test: 90, fast: 225, demo: 315 },
+  }
+  return durations[cfg.value.mode][cfg.value.speed]
 })
 
 onMounted(async () => {
@@ -49,7 +57,10 @@ async function go() {
       <ControlForm v-model="cfg" :scenarios="scenarios" />
     </div>
 
-    <p class="mt-4 text-sm text-slate-500">{{ t('control.demoNote') }}</p>
+    <div class="mt-4 space-y-1 text-sm text-slate-500">
+      <p>{{ t(`control.${cfg.mode}Note`) }}</p>
+      <p data-test="duration">{{ t('control.duration', { minutes }) }}</p>
+    </div>
     <p v-if="sim.error" class="mt-4 text-sm text-red-600">{{ t('errors.generic', { msg: sim.error }) }}</p>
 
     <div class="mt-6 flex justify-end">

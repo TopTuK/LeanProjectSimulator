@@ -41,6 +41,7 @@ def initial_state(scn: ScenarioData) -> dict:
         "effort": {str(n): a.effort for n, a in scn.activities.items()},
         "overrides": {},
         "delivered": [],
+        "risk_outcomes": {},
     }
 
 

@@ -8,6 +8,7 @@ Level = Literal["easy", "standard", "hard"]
 class SessionCreate(BaseModel):
     locale: Literal["en", "ru"] = "en"
     scenario: str = "webshop"
+    mode: Literal["demo", "full"] = "demo"
     speed: Literal["test", "fast", "demo"] = "demo"
     already_planned: bool = True
     risk: bool = False

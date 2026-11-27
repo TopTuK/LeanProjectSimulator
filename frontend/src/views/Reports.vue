@@ -12,7 +12,8 @@ const { money, num, shortTime } = useFormat()
 const sim = useSim()
 const s = computed(() => sim.state)
 
-const TILES = ['description', 'org', 'dashboard', 'cpi', 'spi', 'quality', 'motivation', 'hours', 'ev', 'decisions', 'learning', 'status']
+const BASE_TILES = ['description', 'org', 'dashboard', 'cpi', 'spi', 'quality', 'motivation', 'hours', 'ev', 'decisions', 'learning', 'status']
+const tiles = computed(() => s.value.config.risk ? [...BASE_TILES.slice(0, -1), 'risks', 'status'] : BASE_TILES)
 const tile = ref(null)
 
 watch(
@@ -63,7 +64,7 @@ watch(notes, (v) => {
 <template>
   <div class="mx-auto max-w-6xl">
     <div v-if="!tile" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <button v-for="(k, i) in TILES" :key="k" class="card p-5 text-left transition hover:border-accent hover:shadow-sm" @click="tile = k">
+      <button v-for="(k, i) in tiles" :key="k" class="card p-5 text-left transition hover:border-accent hover:shadow-sm" @click="tile = k">
         <span class="text-xs text-slate-400 tabular-nums">{{ String(i + 1).padStart(2, '0') }}</span>
         <span class="mt-2 block text-sm font-medium text-slate-800">{{ t(`reports.tiles.${k}`) }}</span>
       </button>
@@ -134,6 +135,21 @@ watch(notes, (v) => {
           <ol class="list-decimal space-y-2 pl-5 text-sm text-slate-700">
             <li v-for="(p, i) in s.learning_points" :key="i">{{ p }}</li>
           </ol>
+        </template>
+
+        <template v-else-if="tile === 'risks'">
+          <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="rounded-lg bg-slate-50 p-3"><dt class="text-xs text-slate-500">{{ t('risks.identified') }}</dt><dd class="mt-1 font-semibold">{{ s.game.risk_count }}</dd></div>
+            <div class="rounded-lg bg-slate-50 p-3"><dt class="text-xs text-slate-500">{{ t('end.risksManaged') }}</dt><dd class="mt-1 font-semibold">{{ s.game.risks_mitigated }}</dd></div>
+            <div class="rounded-lg bg-slate-50 p-3"><dt class="text-xs text-slate-500">{{ t('risks.occurred') }}</dt><dd class="mt-1 font-semibold">{{ s.game.risks_occurred }}</dd></div>
+            <div class="rounded-lg bg-slate-50 p-3"><dt class="text-xs text-slate-500">{{ t('risks.open') }}</dt><dd class="mt-1 font-semibold">{{ s.risks.filter((r) => r.status === 'open').length }}</dd></div>
+          </dl>
+          <ul class="mt-5 divide-y divide-slate-100">
+            <li v-for="r in s.risks" :key="r.key" class="flex items-center justify-between gap-4 py-3 text-sm">
+              <span>{{ r.name }}<span class="ml-2 text-xs text-slate-400">{{ r.category }}</span></span>
+              <span class="font-medium">{{ t(`risks.status.${r.status}`) }}</span>
+            </li>
+          </ul>
         </template>
 
         <template v-else-if="tile === 'status'">

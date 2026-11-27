@@ -45,7 +45,7 @@ export const TEAM_GUIDE = {
 export const GUIDE = {
   en: {
     title: 'How to play',
-    intro: 'You are the project manager of a 12-week project. The demo plays the first week. Your job is to keep the project on budget, on time, at good quality and with a motivated team - while events keep happening.',
+    intro: 'You are the project manager of a 45-working-day project. Demo plays week 1; Full plays all nine weeks. Keep the project on budget, on time, at good quality and with a motivated team while events and risks develop.',
     sections: [
       {
         title: '1. Before you start the clock',
@@ -57,10 +57,10 @@ export const GUIDE = {
         ],
       },
       {
-        title: '2. Run the week',
+        title: '2. Run the project',
         items: [
           'Press Start clock (top right). One project week is Monday to Friday, 8:00–19:00. People work 9:00–17:00.',
-          'At Demo speed one week takes 15 minutes. Test and Fast speeds are shorter.',
+          'At Normal speed one day takes 7 minutes: 35 minutes for Demo and 315 minutes for Full. Test and Fast are shorter.',
           'You can pause and resume at any time. Pausing does not cost anything.',
         ],
       },
@@ -75,13 +75,14 @@ export const GUIDE = {
         ],
       },
       {
-        title: '4. React to problems',
+        title: '4. React to problems and manage risks',
         items: [
-          'Things change during the week: someone falls sick, extra work is added, people get overloaded.',
+          'Things change during the project: someone falls sick, extra work is added, people get overloaded.',
           'Pause the clock first - assignments can only be changed while it is stopped.',
           'Click any task in Budget, Gantt or Team to open it. Add or remove people and set their share (25–100%). Press Save.',
           'A task only starts when all tasks before it are finished. People assigned to a waiting task do nothing yet.',
-          'Resource leveling (on the Team page) suggests who can take over work from unavailable or overloaded people.',
+          'Resource leveling (on the Team page) suggests replacements; you can also add available people to increase capacity on late critical work.',
+          'In Full with risks enabled, open Risks and choose a response before each deadline. Responses cost money but can reduce probability or impact. The register shows whether each risk occurred.',
         ],
       },
       {
@@ -95,18 +96,18 @@ export const GUIDE = {
         ],
       },
       {
-        title: '6. End of the demo',
+        title: '6. Score and completion',
         items: [
-          'The clock stops on Friday at 19:00. You see your final scores, your decisions and your learning points.',
-          'Close the summary to look around the results, or start a new simulation with other settings.',
-          'Reports show how each score moved during the week.',
+          'The clock stops on Friday at 19:00 after week 1 in Demo or week 9 in Full.',
+          'The overall score averages the four indexes capped at 100. Earn Gold at 90, Silver at 75, or Bronze at 60, plus badges for strong results.',
+          'Review completion, decision timeliness, risk outcomes and learning points. Reports show how each score moved during the project.',
         ],
       },
     ],
   },
   ru: {
     title: 'Как играть',
-    intro: 'Вы - руководитель 12-недельного проекта. В демо играется первая неделя. Ваша задача - удержать проект в бюджете и сроках, с хорошим качеством и мотивированной командой, пока вокруг всё время что-то происходит.',
+    intro: 'Вы - руководитель проекта на 45 рабочих дней. В демо играется первая неделя, в полном режиме - все девять недель. Удерживайте бюджет, сроки, качество и мотивацию команды, пока происходят события и развиваются риски.',
     sections: [
       {
         title: '1. Перед запуском часов',
@@ -118,10 +119,10 @@ export const GUIDE = {
         ],
       },
       {
-        title: '2. Запустите неделю',
+        title: '2. Запустите проект',
         items: [
           'Нажмите «Запустить часы» (справа вверху). Проектная неделя - с понедельника по пятницу, 8:00–19:00. Люди работают с 9:00 до 17:00.',
-          'На скорости «Демо» неделя длится 15 минут. «Тест» и «Быстро» - короче.',
+          'На обычной скорости день длится 7 минут: демо занимает 35 минут, полная игра - 315 минут. «Тест» и «Быстро» - короче.',
           'Ставить на паузу и продолжать можно в любой момент. Пауза ничего не стоит.',
         ],
       },
@@ -136,13 +137,14 @@ export const GUIDE = {
         ],
       },
       {
-        title: '4. Реагируйте на проблемы',
+        title: '4. Реагируйте на проблемы и управляйте рисками',
         items: [
-          'В течение недели всё меняется: кто-то заболевает, добавляется работа, люди перегружаются.',
+          'В течение проекта всё меняется: кто-то заболевает, добавляется работа, люди перегружаются.',
           'Сначала поставьте часы на паузу - назначения можно менять только когда часы стоят.',
           'Нажмите на любую задачу в «Бюджете», «Ганте» или «Команде». Добавьте или уберите людей и задайте долю (25–100%). Нажмите «Сохранить».',
           'Задача начинается, только когда завершены все предшествующие. Люди, назначенные на ожидающую задачу, пока ничего не делают.',
-          '«Выравнивание ресурсов» (на странице «Команда») подскажет, кто может забрать работу у недоступных или перегруженных людей.',
+          '«Выравнивание ресурсов» предлагает замены; доступных людей можно добавить на критические задачи в конце проекта, чтобы увеличить мощность.',
+          'В полной игре с рисками открывайте «Риски» и выбирайте реагирование до срока. Оно требует затрат, но снижает вероятность или влияние. В реестре видно, наступил ли риск.',
         ],
       },
       {
@@ -156,11 +158,11 @@ export const GUIDE = {
         ],
       },
       {
-        title: '6. Конец демо',
+        title: '6. Оценка и завершение',
         items: [
-          'Часы останавливаются в пятницу в 19:00. Вы увидите итоговые показатели, свои решения и выводы.',
-          'Закройте итог, чтобы изучить результаты, или начните новую симуляцию с другими настройками.',
-          'В «Отчётах» видно, как менялся каждый показатель в течение недели.',
+          'Часы останавливаются в пятницу в 19:00 после первой недели в демо или девятой недели в полной игре.',
+          'Общая оценка - среднее четырёх показателей, ограниченных 100. Золото - от 90, серебро - от 75, бронза - от 60; за сильные результаты выдаются значки.',
+          'Изучите завершённость, своевременность решений, результаты рисков и выводы. В «Отчётах» видно, как менялся каждый показатель.',
         ],
       },
     ],

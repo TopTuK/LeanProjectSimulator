@@ -42,6 +42,19 @@ class ResourceDef:
 
 
 @dataclass
+class RiskDef:
+    key: str
+    name: dict
+    description: dict
+    category: dict
+    probability: float
+    impact: dict
+    identify_event: str
+    occurrence_event: str
+    decision: str
+
+
+@dataclass
 class ScenarioData:
     code: str
     title: dict
@@ -56,6 +69,8 @@ class ScenarioData:
     events: list[dict] = field(default_factory=list)  # sorted by minute
     decisions: dict[str, dict] = field(default_factory=dict)
     default_assignments: list[tuple[int, int, int]] = field(default_factory=list)
+    risks: dict[str, RiskDef] = field(default_factory=dict)
+    risk_events: dict[str, tuple[RiskDef, str]] = field(default_factory=dict)
 
     @property
     def total_days(self) -> int:
@@ -129,6 +144,16 @@ def get_scenario(db: Session, code: str) -> ScenarioData | None:
                 for o in d.options
             },
         }
+
+    for r in db.scalars(select(m.ScenarioRisk).where(m.ScenarioRisk.scenario_code == code)):
+        risk = RiskDef(
+            key=r.key, name=r.name, description=r.description, category=r.category,
+            probability=r.probability, impact=r.impact or {}, identify_event=r.identify_event_key,
+            occurrence_event=r.occurrence_event_key, decision=r.decision_key,
+        )
+        data.risks[risk.key] = risk
+        data.risk_events[risk.identify_event] = (risk, "identify")
+        data.risk_events[risk.occurrence_event] = (risk, "occur")
 
     for da in db.scalars(select(m.DefaultAssignment).where(m.DefaultAssignment.scenario_code == code)):
         data.default_assignments.append((da.activity_no, da.resource_no, da.percent))

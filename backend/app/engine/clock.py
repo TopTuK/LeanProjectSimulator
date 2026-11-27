@@ -15,14 +15,14 @@ WORK_START = 9
 WORK_END = 17
 WORK_HOURS_PER_DAY = WORK_END - WORK_START  # 8
 
-# Real seconds for one project week.
-SPEEDS = {"test": 180, "fast": 420, "demo": 900}
+# Real seconds for one project day.
+SPEEDS = {"test": 120, "fast": 300, "demo": 420}
 DEMO_WEEKS = 1
 
 
 def factor(speed: str) -> float:
     """Project minutes per real second."""
-    return WEEK_MIN / SPEEDS[speed]
+    return DAY_MIN / SPEEDS[speed]
 
 
 def to_minute(week: int, weekday: int, hour: float) -> float:

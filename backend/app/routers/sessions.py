@@ -2,7 +2,7 @@ import asyncio
 import json
 
 from anyio import to_thread
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -37,11 +37,23 @@ def create(body: schemas.SessionCreate, db: Session = Depends(get_db), user: m.U
     return sim.build_state(db, s)
 
 
+@router.get("")
+def list_sessions(db: Session = Depends(get_db), user: m.User = Depends(current_user)):
+    return sim.list_sessions(db, user.id)
+
+
 @router.get("/{session_id}")
 def get(session_id: str, db: Session = Depends(get_db), user: m.User = Depends(current_user)):
     s = _tick(db, session_id, user)
     db.commit()
     return sim.build_state(db, s)
+
+
+@router.delete("/{session_id}", status_code=204)
+def delete(session_id: str, db: Session = Depends(get_db), user: m.User = Depends(current_user)):
+    s = sim.load_session(db, session_id, lock=True, owner_id=user.id)
+    sim.delete_session(db, s)
+    return Response(status_code=204)
 
 
 @router.get("/{session_id}/snapshots")

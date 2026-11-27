@@ -119,12 +119,12 @@ def test_open_redirect_is_blocked(client):
 def test_user_denied_access(client):
     client.get("/api/auth/vk/login", follow_redirects=False)
     r = client.get("/auth/login-vk", params={"error": "access_denied"}, follow_redirects=False)
-    assert r.headers["location"] == "/?auth_error=1"
+    assert r.headers["location"] == "/login?auth_error=1&next=%2F"
     assert client.get("/api/auth/me").status_code == 401
 
 
 def test_provider_failure(client, vk):
     vk.fail = True
     r = login_vk(client, "205")
-    assert r.headers["location"] == "/?auth_error=1"
+    assert r.headers["location"] == "/login?auth_error=1&next=%2F"
     assert client.get("/api/auth/me").status_code == 401

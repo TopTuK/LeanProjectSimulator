@@ -1,4 +1,5 @@
 import secrets
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
@@ -46,6 +47,11 @@ def _sign_in(request: Request, user: m.User, next_path: str) -> RedirectResponse
     return RedirectResponse(next_path, status_code=302)
 
 
+def _login_error(next_path: str) -> RedirectResponse:
+    query = urlencode({"auth_error": "1", "next": next_path})
+    return RedirectResponse(f"/login?{query}", status_code=302)
+
+
 @router.get("/api/auth/yandex/login")
 def login(request: Request, next: str | None = None, yandex: YandexClient = Depends(get_yandex)):
     return RedirectResponse(yandex.authorize_url(_start(request, next)), status_code=302)
@@ -64,12 +70,12 @@ def callback(
     expected = request.session.pop("oauth_state", None)
     next_path = request.session.pop("oauth_next", "/")
     if error:
-        return RedirectResponse("/?auth_error=1", status_code=302)
+        return _login_error(next_path)
     _check_state(expected, code, state)
     try:
         info = yandex.user_info(yandex.exchange_code(code))
     except YandexError:
-        return RedirectResponse("/?auth_error=1", status_code=302)
+        return _login_error(next_path)
 
     yandex_id = str(info["id"])
     user = db.scalar(select(m.User).where(m.User.yandex_id == yandex_id))
@@ -112,14 +118,14 @@ def vk_callback(
     next_path = request.session.pop("oauth_next", "/")
     verifier = request.session.pop("oauth_verifier", None)
     if error:
-        return RedirectResponse("/?auth_error=1", status_code=302)
+        return _login_error(next_path)
     _check_state(expected, code, state)
     if not verifier or not device_id:
         raise HTTPException(status_code=400, detail="invalid oauth state")
     try:
         info = vk.user_info(vk.exchange_code(code, verifier, device_id, state))
     except VkError:
-        return RedirectResponse("/?auth_error=1", status_code=302)
+        return _login_error(next_path)
 
     vk_id = str(info["user_id"])
     user = db.scalar(select(m.User).where(m.User.vk_id == vk_id))
@@ -156,14 +162,14 @@ def google_callback(
     next_path = request.session.pop("oauth_next", "/")
     verifier = request.session.pop("oauth_verifier", None)
     if error:
-        return RedirectResponse("/?auth_error=1", status_code=302)
+        return _login_error(next_path)
     _check_state(expected, code, state)
     if not verifier:
         raise HTTPException(status_code=400, detail="invalid oauth state")
     try:
         info = google.user_info(google.exchange_code(code, verifier))
     except GoogleError:
-        return RedirectResponse("/?auth_error=1", status_code=302)
+        return _login_error(next_path)
 
     google_id = str(info["sub"])
     user = db.scalar(select(m.User).where(m.User.google_id == google_id))

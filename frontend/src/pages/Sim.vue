@@ -130,6 +130,9 @@ const s = computed(() => sim.state)
             {{ s.scenario.title }} · <span class="uppercase">{{ s.locale }}</span> · {{ t(`mode.${s.config.mode || 'demo'}`) }}
           </p>
         </div>
+        <RouterLink to="/simulations" class="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" :title="t('simulations.title')" data-test="my-simulations">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+        </RouterLink>
         <button class="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900" :class="{ 'text-accent blink': unreadPhone }" :title="t('mail.phone')" @click="openMail()">
           <Icon name="phone" class="h-5 w-5" />
         </button>

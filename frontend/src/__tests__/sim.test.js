@@ -37,4 +37,32 @@ describe('sim store', () => {
     await expect(useSim().load('s1')).rejects.toMatchObject({ status: 401 })
     expect(auth.chooseLogin).toHaveBeenCalledWith(window.location.pathname)
   })
+
+  it('loads all session summaries', async () => {
+    mockFetch({ 'GET /api/sessions': [200, [{ id: 's1' }, { id: 's2' }]] })
+    const sim = useSim()
+    await sim.loadSessions()
+    expect(sim.sessions.map((s) => s.id)).toEqual(['s1', 's2'])
+    expect(sim.listBusy).toBe(false)
+  })
+
+  it('removes a running session and cleans up its stream and remembered id', async () => {
+    const close = vi.fn()
+    vi.stubGlobal('EventSource', class {
+      constructor() { this.close = close }
+    })
+    mockFetch({
+      'GET /api/sessions/s1': [200, { ...STATE, status: 'running' }],
+      'DELETE /api/sessions/s1': [204, null],
+    })
+    const sim = useSim()
+    await sim.load('s1')
+    sim.sessions = [{ id: 's1' }, { id: 's2' }]
+    await sim.remove('s1')
+    expect(close).toHaveBeenCalledOnce()
+    expect(sim.state).toBeNull()
+    expect(sim.sessions).toEqual([{ id: 's2' }])
+    expect(lastSessionId()).toBeNull()
+    expect(sim.deleting).toBeNull()
+  })
 })

@@ -5,7 +5,9 @@ from tests.conftest import login
 
 @pytest.mark.parametrize("method,path", [
     ("post", "/api/sessions"),
+    ("get", "/api/sessions"),
     ("get", "/api/sessions/any"),
+    ("delete", "/api/sessions/any"),
     ("get", "/api/sessions/any/snapshots"),
     ("get", "/api/sessions/any/stream"),
     ("post", "/api/sessions/any/clock/start"),
@@ -16,7 +18,7 @@ from tests.conftest import login
     ("post", "/api/sessions/any/decisions/1"),
 ])
 def test_anonymous_is_refused(client, method, path):
-    r = client.get(path) if method == "get" else getattr(client, method)(path, json={})
+    r = client.request(method, path, json={})
     assert r.status_code == 401
     assert r.json()["detail"] == "login required"
 
@@ -42,6 +44,20 @@ def test_session_belongs_to_creator(client):
     client.post("/api/auth/logout")
     login(client, "201")
     assert client.post(f"/api/sessions/{sid}/clock/start").json()["status"] == "running"
+
+
+def test_user_cannot_list_or_delete_another_users_session(client):
+    login(client, "301")
+    sid = client.post("/api/sessions", json={}).json()["id"]
+
+    client.post("/api/auth/logout")
+    login(client, "302")
+    assert sid not in [row["id"] for row in client.get("/api/sessions").json()]
+    assert client.delete(f"/api/sessions/{sid}").status_code == 404
+
+    client.post("/api/auth/logout")
+    login(client, "301")
+    assert client.get(f"/api/sessions/{sid}").status_code == 200
 
 
 def test_logout_ends_access(auth_client):

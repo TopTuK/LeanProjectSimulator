@@ -19,11 +19,20 @@ function rememberSession(id) {
   } catch {}
 }
 
+function forgetSession(id) {
+  try {
+    if (localStorage.getItem(LAST_KEY) === id) localStorage.removeItem(LAST_KEY)
+  } catch {}
+}
+
 export const useSim = defineStore('sim', () => {
   const state = ref(null)
+  const sessions = ref([])
   const snapshots = ref([])
   const error = ref('')
   const busy = ref(false)
+  const listBusy = ref(false)
+  const deleting = ref(null)
   let source = null
 
   const running = computed(() => state.value?.status === 'running')
@@ -75,6 +84,42 @@ export const useSim = defineStore('sim', () => {
     source = null
   }
 
+  async function loadSessions() {
+    error.value = ''
+    listBusy.value = true
+    try {
+      sessions.value = await api.list()
+      return sessions.value
+    } catch (e) {
+      if (e.status === 401) useAuth().chooseLogin(window.location.pathname)
+      error.value = e.message
+      throw e
+    } finally {
+      listBusy.value = false
+    }
+  }
+
+  async function remove(sessionId) {
+    error.value = ''
+    deleting.value = sessionId
+    try {
+      await api.remove(sessionId)
+      sessions.value = sessions.value.filter((s) => s.id !== sessionId)
+      if (state.value?.id === sessionId) {
+        disconnect()
+        state.value = null
+        snapshots.value = []
+      }
+      forgetSession(sessionId)
+    } catch (e) {
+      if (e.status === 401) useAuth().chooseLogin(window.location.pathname)
+      error.value = e.message
+      throw e
+    } finally {
+      deleting.value = null
+    }
+  }
+
   async function create(cfg) {
     const next = await run(() => api.create(cfg))
     rememberSession(next.id)
@@ -93,8 +138,8 @@ export const useSim = defineStore('sim', () => {
   const id = () => state.value.id
 
   return {
-    state, snapshots, error, busy, running, ended, unread, openDecisions, activity, resource,
-    create, load, disconnect,
+    state, sessions, snapshots, error, busy, listBusy, deleting, running, ended, unread, openDecisions, activity, resource,
+    create, load, loadSessions, remove, disconnect,
     start: () => run(() => api.start(id())),
     pause: () => run(() => api.pause(id())),
     decide: (decisionId, option) => run(() => api.decide(id(), decisionId, option)),

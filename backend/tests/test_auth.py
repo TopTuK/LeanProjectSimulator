@@ -80,14 +80,14 @@ def test_user_denied_access(client):
     client.get("/api/auth/yandex/login", follow_redirects=False)
     r = client.get("/auth/login-yandex", params={"error": "access_denied"}, follow_redirects=False)
     assert r.status_code == 302
-    assert r.headers["location"] == "/?auth_error=1"
+    assert r.headers["location"] == "/login?auth_error=1&next=%2F"
     assert client.get("/api/auth/me").status_code == 401
 
 
 def test_yandex_failure_redirects_with_error(client, yandex):
     yandex.fail = True
-    r = login(client, "104")
-    assert r.headers["location"] == "/?auth_error=1"
+    r = login(client, "104", next="/sim/abc/office")
+    assert r.headers["location"] == "/login?auth_error=1&next=%2Fsim%2Fabc%2Foffice"
     assert client.get("/api/auth/me").status_code == 401
 
 
